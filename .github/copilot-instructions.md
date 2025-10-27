@@ -87,7 +87,7 @@ msbuild [solution].sln /t:Clean /p:Configuration=Debug /p:UICulture=en-US
 ## Project Architecture
 
 ### Main Components
-1. **b2sbackglassserver/** - Core COM server (DLL) and standalone executable (EXE)
+1. **b2sbackglassserver/** - Core COM server (DLL) and standalone executable (EXE) (the DLL calls the EXE depending on the configuration)
    - `B2SBackglassServer.vbproj` - COM server library
    - `B2SBackglassServerEXE.vbproj` - Standalone executable
    - Key files: `Server.vb`, `Classes/B2SVersionInfo.vb`
