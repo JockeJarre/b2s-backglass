@@ -28,8 +28,14 @@ jobs:
       - name: Install .NET Framework 4.0
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://download.microsoft.com/download/1/5/5/1555F3C1-3E5C-4F0A-9F3D-5C5D1E6D9A7A/dotNetFx40_Full_x86_x64.exe" -OutFile "dotNetFx40.exe"
-          Start-Process -FilePath "dotNetFx40.exe" -ArgumentList "/q" -Wait
+          $page = Invoke-WebRequest "https://www.microsoft.com/en-us/download/details.aspx?id=17718"
+          $url = ($page.Links | Where-Object href -like "*dotNetFx40_Full_x86_x64.exe*").href
+          if ($url) {
+            Invoke-WebRequest $url -OutFile "dotNetFx40.exe"
+            Start-Process "dotNetFx40.exe" -ArgumentList "/q" -Wait
+          } else {
+            Write-Error "Installer URL not found."
+          }
       - id: version
         name: Update AssemblyInformationalVersion
         run: |
