@@ -28,14 +28,7 @@ jobs:
       - name: Install .NET Framework 4.0
         shell: pwsh
         run: |
-          $page = Invoke-WebRequest "https://www.microsoft.com/en-us/download/details.aspx?id=17718"
-          $url = ($page.Links | Where-Object href -like "*dotNetFx40_Full_x86_x64.exe*").href
-          if ($url) {
-            Invoke-WebRequest $url -OutFile "dotNetFx40.exe"
-            Start-Process "dotNetFx40.exe" -ArgumentList "/q" -Wait
-          } else {
-            Write-Error "Installer URL not found."
-          }
+          choco install netfx-4.0.3-devpack -y
       - id: version
         name: Update AssemblyInformationalVersion
         run: |
