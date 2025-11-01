@@ -27,15 +27,15 @@ jobs:
           path: B2SServerPluginInterface
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
-
-      - name: Create packages.config
+      - name: Restore .NET 4 reference assemblies
+        shell: pwsh
         run: |
-          echo '<?xml version="1.0" encoding="utf-8"?>' > B2SServerPluginInterface/packages.config
-          echo '<packages>' >> B2SServerPluginInterface/packages.config
-          echo '  <package id="Microsoft.NETFramework.ReferenceAssemblies" version="1.0.3" developmentDependency="true" />' >> B2SServerPluginInterface/packages.config
-          echo '</packages>' >> B2SServerPluginInterface/packages.config
-      - name: Restore NuGet packages
-        run: nuget restore B2SServerPluginInterface/packages.config -PackagesDirectory packages
+          & "$env:ChocolateyInstall\bin\nuget.exe" install Microsoft.NETFramework.ReferenceAssemblies.net40 -Version 1.0.3 -OutputDirectory packages
+          $packageRoot = Join-Path $PWD 'packages/Microsoft.NETFramework.ReferenceAssemblies.net40.1.0.3'
+          $nupkg = Join-Path $packageRoot 'Microsoft.NETFramework.ReferenceAssemblies.net40.1.0.3.nupkg'
+          if (Test-Path $nupkg) {
+            Expand-Archive -LiteralPath $nupkg -DestinationPath $packageRoot -Force
+          }
       - id: version
         name: Update AssemblyInformationalVersion
         run: |
@@ -88,9 +88,10 @@ jobs:
           echo "tag=${VERSION_LONG}" >> $GITHUB_OUTPUT
       - uses: microsoft/setup-msbuild@v2
       - name: Build B2SServerPluginInterface
+        shell: pwsh
         run: |
-          msbuild B2SServerPluginInterface/B2SServerPluginInterface.sln /t:Rebuild /p:Configuration=${{ matrix.config }} /p:TargetFrameworkRootPath="C:\Users\runneradmin\.nuget\packages\microsoft.netframework.referenceassemblies\1.0.3\build\ReferenceAssemblies"
-        shell: cmd
+          $frameworkPath = Resolve-Path packages/Microsoft.NETFramework.ReferenceAssemblies.net40.1.0.3/build/.NETFramework/v4.0
+          msbuild B2SServerPluginInterface/B2SServerPluginInterface.sln /t:Rebuild /p:Configuration=${{ matrix.config }} /p:FrameworkPathOverride="$frameworkPath"
       - run: |
           cp B2SServerPluginInterface/B2SServerPluginInterface/bin/${{ matrix.config }}/B2SServerPluginInterface.dll b2sbackglassserver/b2sbackglassserver/Plugin
           if [[ "${{ matrix.config }}" == "Debug" ]]; then
