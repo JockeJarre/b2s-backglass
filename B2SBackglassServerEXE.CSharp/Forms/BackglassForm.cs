@@ -14,6 +14,7 @@ namespace B2SBackglassServerEXE.Forms
         private Timer? _renderTimer;
         private Models.BackglassData? _backglassData;
         private Dictionary<int, bool> _lampStates = new Dictionary<int, bool>();
+        private Rendering.AnimationEngine? _animationEngine;
 
         public BackglassForm()
         {
@@ -105,6 +106,9 @@ namespace B2SBackglassServerEXE.Forms
                         _lampStates[illumination.RomID] = illumination.InitialState == 1;
                         illumination.IsOn = illumination.InitialState == 1;
                     }
+
+                    // Create animation engine
+                    _animationEngine = new Rendering.AnimationEngine(_backglassData, this);
 
                     System.Diagnostics.Debug.WriteLine($"Loaded backglass: {_backglassData.Name}");
                     System.Diagnostics.Debug.WriteLine($"Size: {_backglassData.BackglassSize}");
@@ -239,8 +243,40 @@ namespace B2SBackglassServerEXE.Forms
 
         private void RegistryMonitor_AnimationsChanged(object? sender, AnimationChangedEventArgs e)
         {
-            // TODO: Process animation commands
-            System.Diagnostics.Debug.WriteLine($"Animations changed: {e.Animations.Length} animations");
+            if (_animationEngine == null)
+                return;
+
+            // Process animation commands
+            // Format: "name1=state1\x01name2=state2\x01..."
+            // State: 0=Stop, 1=Start, 2=Start Reverse
+            foreach (var animCmd in e.Animations)
+            {
+                if (string.IsNullOrEmpty(animCmd))
+                    continue;
+
+                var parts = animCmd.Split('=');
+                if (parts.Length != 2)
+                    continue;
+
+                string animName = parts[0].Trim();
+                if (int.TryParse(parts[1], out int state))
+                {
+                    switch (state)
+                    {
+                        case 0: // Stop
+                            _animationEngine.StopAnimation(animName);
+                            break;
+                        case 1: // Start
+                            _animationEngine.StartAnimation(animName, false);
+                            break;
+                        case 2: // Start Reverse
+                            _animationEngine.StartAnimation(animName, true);
+                            break;
+                    }
+                }
+            }
+
+            System.Diagnostics.Debug.WriteLine($"Animations changed: {e.Animations.Length} commands");
         }
 
         private void RegistryMonitor_DataChanged(object? sender, DataChangedEventArgs e)
@@ -255,6 +291,7 @@ namespace B2SBackglassServerEXE.Forms
             _renderTimer?.Stop();
             _registryMonitor?.StopMonitoring();
             _registryMonitor?.Dispose();
+            _animationEngine?.Dispose();
 
             base.OnFormClosing(e);
         }
