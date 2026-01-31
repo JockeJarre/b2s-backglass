@@ -16,6 +16,7 @@ namespace B2SBackglassServerEXE.Forms
         private Dictionary<int, bool> _lampStates = new Dictionary<int, bool>();
         private Rendering.AnimationEngine? _animationEngine;
         private DMDForm? _dmdForm;
+        private SizeF _scaleFactor = new SizeF(1.0f, 1.0f);
 
         public BackglassForm()
         {
@@ -28,6 +29,26 @@ namespace B2SBackglassServerEXE.Forms
             // Load settings for this table
             B2SSettings.Instance.Load(Program.TableFileName);
 
+            // Set window properties
+            this.FormBorderStyle = FormBorderStyle.None;
+            this.StartPosition = FormStartPosition.Manual;
+            this.BackColor = Color.Black;
+            this.DoubleBuffered = true;
+            this.Text = "B2S Backglass Server (C#)";
+            this.KeyPreview = true;
+
+            // DPI awareness
+            this.AutoScaleMode = AutoScaleMode.None;
+            
+            // Set style for better rendering
+            this.SetStyle(ControlStyles.AllPaintingInWmPaint | 
+                         ControlStyles.UserPaint |
+                         ControlStyles.OptimizedDoubleBuffer, true);
+
+            // Position on correct screen
+            var screen = Utilities.ScreenManager.GetBackglassScreen();
+            this.Location = new Point(screen.Bounds.X + 100, screen.Bounds.Y + 100);
+
             // Apply settings
             if (B2SSettings.Instance.FormToFront)
             {
@@ -38,18 +59,6 @@ namespace B2SBackglassServerEXE.Forms
             {
                 this.Visible = false;
             }
-
-            // Set up window
-            this.Text = $"B2S Backglass - {Program.TableFileName}";
-            this.FormBorderStyle = FormBorderStyle.None;
-            this.WindowState = FormWindowState.Normal;
-            this.BackColor = Color.Black;
-            
-            // Enable double buffering for smooth rendering
-            this.SetStyle(ControlStyles.AllPaintingInWmPaint | 
-                         ControlStyles.UserPaint |
-                         ControlStyles.OptimizedDoubleBuffer, true);
-            this.DoubleBuffered = true;
 
             // Set up registry monitor
             _registryMonitor = new RegistryMonitor();
@@ -98,8 +107,23 @@ namespace B2SBackglassServerEXE.Forms
 
                 if (_backglassData != null)
                 {
-                    // Resize form to backglass size
-                    this.ClientSize = _backglassData.BackglassSize;
+                    // Calculate scale factor if window size differs from backglass size
+                    var dpiScale = Utilities.ScreenManager.GetDpiScaleFactor();
+                    var targetSize = _backglassData.BackglassSize;
+
+                    // Adjust for DPI if needed
+                    if (dpiScale.Width != 1.0f || dpiScale.Height != 1.0f)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"DPI Scale: {dpiScale.Width}x{dpiScale.Height}");
+                    }
+
+                    // Set window size to backglass size
+                    this.ClientSize = targetSize;
+                    _scaleFactor = Utilities.ImageScaler.GetScaleFactor(_backglassData.BackglassSize, this.ClientSize);
+
+                    // Position window on correct screen
+                    this.Location = Utilities.ScreenManager.GetBackglassLocation(this.ClientSize);
+                    Utilities.ScreenManager.EnsureVisibleOnScreen(this);
 
                     // Initialize lamp states
                     foreach (var illumination in _backglassData.Illuminations)
@@ -115,10 +139,16 @@ namespace B2SBackglassServerEXE.Forms
                     if (!B2SSettings.Instance.HideDMD && HasDMDIlluminations())
                     {
                         _dmdForm = new DMDForm(_backglassData);
-                        _dmdForm.Location = new Point(
-                            this.Location.X + _backglassData.DMDLocation.X,
-                            this.Location.Y + _backglassData.DMDLocation.Y
+                        
+                        var dmdLocation = Utilities.ScreenManager.GetDMDLocation(
+                            this.Location,
+                            this.ClientSize,
+                            _backglassData.DMDLocation,
+                            _backglassData.DMDSize
                         );
+                        
+                        _dmdForm.Location = dmdLocation;
+                        Utilities.ScreenManager.EnsureVisibleOnScreen(_dmdForm);
                         _dmdForm.Show(this);
                     }
 
@@ -182,6 +212,13 @@ namespace B2SBackglassServerEXE.Forms
             // Render background image
             if (_backglassData.BackgroundImage != null)
             {
+                // Scale to fit client area if needed
+                if (_scaleFactor.Width != 1.0f || _scaleFactor.Height != 1.0f)
+                {
+                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+                }
+                
                 g.DrawImage(_backglassData.BackgroundImage, 0, 0, this.ClientSize.Width, this.ClientSize.Height);
             }
 
@@ -206,9 +243,12 @@ namespace B2SBackglassServerEXE.Forms
 
                 if (imageToRender != null)
                 {
-                    // Draw the illumination image at its location
-                    g.DrawImage(imageToRender, illumination.Location.X, illumination.Location.Y, 
-                        illumination.Size.Width, illumination.Size.Height);
+                    // Apply scaling if needed
+                    var scaledLocation = Utilities.ImageScaler.ScalePoint(illumination.Location, _scaleFactor);
+                    var scaledSize = Utilities.ImageScaler.ScaleSize(illumination.Size, _scaleFactor);
+                    
+                    g.DrawImage(imageToRender, scaledLocation.X, scaledLocation.Y, 
+                        scaledSize.Width, scaledSize.Height);
                 }
             }
 

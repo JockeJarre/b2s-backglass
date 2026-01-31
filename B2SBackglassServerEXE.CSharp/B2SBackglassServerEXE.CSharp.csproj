@@ -72,6 +72,8 @@
     <Compile Include="Models\BackglassData.cs" />
     <Compile Include="Rendering\AnimationEngine.cs" />
     <Compile Include="Utilities\Win32Api.cs" />
+    <Compile Include="Utilities\ImageScaler.cs" />
+    <Compile Include="Utilities\ScreenManager.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.manifest" />
