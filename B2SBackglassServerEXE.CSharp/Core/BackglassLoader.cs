@@ -70,6 +70,8 @@ namespace B2SBackglassServerEXE.Core
 
         private Models.BackglassData ParseBackglassFile(string filename)
         {
+            System.Diagnostics.Debug.WriteLine($"[LOADER] Parsing backglass file: {filename}");
+            
             var data = new Models.BackglassData
             {
                 FileName = filename,
@@ -85,9 +87,13 @@ namespace B2SBackglassServerEXE.Core
                 if (root == null)
                     throw new Exception("Invalid backglass file: no root element");
 
+                System.Diagnostics.Debug.WriteLine($"[LOADER] Root element: {root.Name}");
+
                 // Parse backglass info
                 data.Name = GetNodeValue(root, "Name", data.Name);
                 data.Author = GetNodeValue(root, "TableType", "");
+                
+                System.Diagnostics.Debug.WriteLine($"[LOADER] Backglass name: {data.Name}");
                 
                 // Parse size
                 var sizeNode = root.SelectSingleNode("BackglassSize");
@@ -97,6 +103,11 @@ namespace B2SBackglassServerEXE.Core
                         GetAttributeInt(sizeNode, "Width", 800),
                         GetAttributeInt(sizeNode, "Height", 600)
                     );
+                    System.Diagnostics.Debug.WriteLine($"[LOADER] Backglass size: {data.BackglassSize.Width}x{data.BackglassSize.Height}");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("[LOADER] WARNING: No BackglassSize node found");
                 }
 
                 // Parse DMD location
@@ -113,21 +124,35 @@ namespace B2SBackglassServerEXE.Core
                     );
                 }
 
-                // Parse background image
-                var bgImageNode = root.SelectSingleNode("BackglassImage");
+                // Parse background image (from Images/BackglassImage node)
+                var bgImageNode = root.SelectSingleNode("Images/BackglassImage");
                 if (bgImageNode != null)
                 {
-                    string base64 = bgImageNode.Attributes?["Value"]?.InnerText;
+                    string? base64 = bgImageNode.Attributes?["Value"]?.InnerText;
                     if (!string.IsNullOrEmpty(base64))
                     {
+                        System.Diagnostics.Debug.WriteLine($"[LOADER] Loading background image ({base64.Length} chars base64)");
                         data.BackgroundImage = Base64ToImage(base64);
+                        if (data.BackgroundImage != null)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[LOADER] Background image loaded: {data.BackgroundImage.Width}x{data.BackgroundImage.Height}");
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine("[LOADER] ERROR: Failed to decode background image!");
+                        }
                     }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("[LOADER] WARNING: No Images/BackglassImage node found in XML");
                 }
 
                 // Parse illuminations (bulbs/lamps)
-                var illuminationNodes = root.SelectNodes("Illumination/Bulb");
+                var illuminationNodes = root.SelectNodes("Illuminations/Illumination");
                 if (illuminationNodes != null)
                 {
+                    System.Diagnostics.Debug.WriteLine($"[LOADER] Found {illuminationNodes.Count} illuminations");
                     foreach (XmlElement node in illuminationNodes)
                     {
                         var bulb = ParseIllumination(node);
@@ -136,6 +161,10 @@ namespace B2SBackglassServerEXE.Core
                             data.Illuminations.Add(bulb);
                         }
                     }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("[LOADER] No Illuminations/Illumination nodes found");
                 }
 
                 // Parse animations
@@ -168,9 +197,12 @@ namespace B2SBackglassServerEXE.Core
             }
             catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[LOADER] ERROR: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[LOADER] Stack: {ex.StackTrace}");
                 throw new Exception($"Error parsing backglass file: {ex.Message}", ex);
             }
 
+            System.Diagnostics.Debug.WriteLine($"[LOADER] Successfully parsed {data.Illuminations.Count} illuminations, {data.Animations.Count} animations");
             return data;
         }
 
