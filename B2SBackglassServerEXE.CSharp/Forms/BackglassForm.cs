@@ -107,23 +107,26 @@ namespace B2SBackglassServerEXE.Forms
 
                 if (_backglassData != null)
                 {
-                    // Calculate scale factor if window size differs from backglass size
-                    var dpiScale = Utilities.ScreenManager.GetDpiScaleFactor();
-                    var targetSize = _backglassData.BackglassSize;
+                    // Get proper window size from screen settings (not .directb2s file)
+                    var targetSize = Utilities.ScreenManager.GetBackglassSize();
+                    var backglassFileSize = _backglassData.BackglassSize;
 
-                    // Adjust for DPI if needed
-                    if (dpiScale.Width != 1.0f || dpiScale.Height != 1.0f)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"DPI Scale: {dpiScale.Width}x{dpiScale.Height}");
-                    }
+                    System.Diagnostics.Debug.WriteLine($"Backglass file size: {backglassFileSize}");
+                    System.Diagnostics.Debug.WriteLine($"Target window size: {targetSize}");
 
-                    // Set window size to backglass size
+                    // Set window size from screen settings
                     this.ClientSize = targetSize;
-                    _scaleFactor = Utilities.ImageScaler.GetScaleFactor(_backglassData.BackglassSize, this.ClientSize);
 
-                    // Position window on correct screen
-                    this.Location = Utilities.ScreenManager.GetBackglassLocation(this.ClientSize);
-                    Utilities.ScreenManager.EnsureVisibleOnScreen(this);
+                    // Calculate scale factor from file size to window size
+                    _scaleFactor = Utilities.ImageScaler.GetScaleFactor(backglassFileSize, targetSize);
+                    
+                    System.Diagnostics.Debug.WriteLine($"Scale factor: {_scaleFactor.Width}x{_scaleFactor.Height}");
+
+                    // Position window from screen settings
+                    this.Location = Utilities.ScreenManager.GetBackglassLocation();
+                    
+                    System.Diagnostics.Debug.WriteLine($"Window location: {this.Location}");
+                    System.Diagnostics.Debug.WriteLine($"Window size: {this.ClientSize}");
 
                     // Initialize lamp states
                     foreach (var illumination in _backglassData.Illuminations)
@@ -212,14 +215,21 @@ namespace B2SBackglassServerEXE.Forms
             // Render background image
             if (_backglassData.BackgroundImage != null)
             {
-                // Scale to fit client area if needed
-                if (_scaleFactor.Width != 1.0f || _scaleFactor.Height != 1.0f)
-                {
-                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
-                }
+                // Always use high quality for scaling
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+                g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
                 
+                // Draw background scaled to window size
                 g.DrawImage(_backglassData.BackgroundImage, 0, 0, this.ClientSize.Width, this.ClientSize.Height);
+            }
+            else
+            {
+                // No background image - draw debug text
+                using (var font = new Font("Arial", 16))
+                {
+                    g.DrawString("No background image in .directb2s file", font, Brushes.Red, 10, 10);
+                }
             }
 
             // Render illuminations in Z-order

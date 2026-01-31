@@ -7,37 +7,81 @@ namespace B2SBackglassServerEXE.Utilities
 {
     public class ScreenManager
     {
+        private static ScreenResolutionSettings? _screenSettings;
+
+        static ScreenManager()
+        {
+            _screenSettings = ScreenResolutionSettings.Load();
+        }
+
         public static Screen GetBackglassScreen()
         {
-            // For now, just return primary screen
-            // TODO: Read from settings when monitor selection is implemented
-            return Screen.PrimaryScreen;
+            if (_screenSettings == null)
+                return Screen.PrimaryScreen;
+
+            var screens = Screen.AllScreens.OrderBy(s => s.Bounds.X).ToArray();
+            
+            // Screen number: 0 = primary, 1+ = ordered by X position
+            int screenIndex = _screenSettings.BackglassScreenNumber;
+            
+            if (screenIndex >= 0 && screenIndex < screens.Length)
+                return screens[screenIndex];
+
+            // Default to second screen if available, else primary
+            return screens.Length > 1 ? screens[1] : screens[0];
         }
 
-        public static Point GetBackglassLocation(Size backglassSize)
+        public static Point GetBackglassLocation()
         {
             var screen = GetBackglassScreen();
-
-            // Center on screen
-            int x = screen.Bounds.X + (screen.Bounds.Width - backglassSize.Width) / 2;
-            int y = screen.Bounds.Y + (screen.Bounds.Height - backglassSize.Height) / 2;
-
-            return new Point(x, y);
-        }
-
-        public static Point GetDMDLocation(Point backglassLocation, Size backglassSize, Point dmdOffset, Size dmdSize)
-        {
-            if (dmdOffset == Point.Empty)
+            
+            if (_screenSettings != null && _screenSettings.BackglassLocation != Point.Empty)
             {
                 return new Point(
-                    backglassLocation.X + backglassSize.Width + 10,
-                    backglassLocation.Y
+                    screen.Bounds.X + _screenSettings.BackglassLocation.X,
+                    screen.Bounds.Y + _screenSettings.BackglassLocation.Y
                 );
             }
 
+            // Default to screen origin
+            return screen.Bounds.Location;
+        }
+
+        public static Size GetBackglassSize()
+        {
+            if (_screenSettings != null && _screenSettings.BackglassSize != Size.Empty)
+            {
+                return _screenSettings.BackglassSize;
+            }
+
+            // Default to full screen
+            var screen = GetBackglassScreen();
+            return screen.Bounds.Size;
+        }
+
+        public static Point GetDMDLocation(Point backglassLocation, Size backglassSize, Point dmdOffsetFromFile, Size dmdSize)
+        {
+            if (_screenSettings != null && _screenSettings.DMDLocation != Point.Empty)
+            {
+                return new Point(
+                    backglassLocation.X + _screenSettings.DMDLocation.X,
+                    backglassLocation.Y + _screenSettings.DMDLocation.Y
+                );
+            }
+
+            // Use offset from .directb2s file if specified
+            if (dmdOffsetFromFile != Point.Empty)
+            {
+                return new Point(
+                    backglassLocation.X + dmdOffsetFromFile.X,
+                    backglassLocation.Y + dmdOffsetFromFile.Y
+                );
+            }
+
+            // Default: to the right of backglass
             return new Point(
-                backglassLocation.X + dmdOffset.X,
-                backglassLocation.Y + dmdOffset.Y
+                backglassLocation.X + backglassSize.Width + 10,
+                backglassLocation.Y
             );
         }
 

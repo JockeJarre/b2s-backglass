@@ -74,6 +74,7 @@
     <Compile Include="Utilities\Win32Api.cs" />
     <Compile Include="Utilities\ImageScaler.cs" />
     <Compile Include="Utilities\ScreenManager.cs" />
+    <Compile Include="Utilities\ScreenResolutionSettings.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.manifest" />
