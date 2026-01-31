@@ -128,11 +128,18 @@ namespace B2SBackglassServerEXE.Forms
                     System.Diagnostics.Debug.WriteLine($"Window location: {this.Location}");
                     System.Diagnostics.Debug.WriteLine($"Window size: {this.ClientSize}");
 
-                    // Initialize lamp states
+                    // Initialize lamp states and visibility
+                    System.Diagnostics.Debug.WriteLine($"[INIT] Initializing {_backglassData.Illuminations.Count} illuminations...");
                     foreach (var illumination in _backglassData.Illuminations)
                     {
                         _lampStates[illumination.RomID] = illumination.InitialState == 1;
                         illumination.IsOn = illumination.InitialState == 1;
+                        
+                        // Illuminations are visible if they have InitialState = 1, OR if they should always show (even if off)
+                        // For now, make all illuminations visible so we can see them
+                        illumination.Visible = true;
+                        
+                        System.Diagnostics.Debug.WriteLine($"[INIT] Illu {illumination.ID} '{illumination.Name}': RomID={illumination.RomID}, Init={illumination.InitialState}, IsOn={illumination.IsOn}, OnImg={illumination.OnImage != null}, OffImg={illumination.OffImage != null}, Pos=({illumination.Location.X},{illumination.Location.Y}), Size=({illumination.Size.Width}x{illumination.Size.Height})");
                     }
 
                     // Create animation engine
@@ -235,21 +242,36 @@ namespace B2SBackglassServerEXE.Forms
             // Render illuminations in Z-order
             var sortedIlluminations = _backglassData.Illuminations
                 .Where(i => i.Parent == "Backglass")
-                .OrderBy(i => i.ZOrder);
+                .OrderBy(i => i.ZOrder)
+                .ToList();
 
+            int renderedCount = 0;
             foreach (var illumination in sortedIlluminations)
             {
                 if (!illumination.Visible)
                     continue;
 
                 // Determine which image to show based on state
-                Image? imageToRender = illumination.IsOn ? illumination.OnImage : illumination.OffImage;
+                Image? imageToRender = null;
                 
-                if (imageToRender == null && illumination.IsOn)
+                if (illumination.IsOn && illumination.OnImage != null)
+                {
                     imageToRender = illumination.OnImage;
-                    
-                if (imageToRender == null)
+                }
+                else if (!illumination.IsOn && illumination.OffImage != null)
+                {
                     imageToRender = illumination.OffImage;
+                }
+                else if (illumination.OnImage != null)
+                {
+                    // Fallback to OnImage if OffImage doesn't exist
+                    imageToRender = illumination.OnImage;
+                }
+                else if (illumination.OffImage != null)
+                {
+                    // Fallback to OffImage if OnImage doesn't exist
+                    imageToRender = illumination.OffImage;
+                }
 
                 if (imageToRender != null)
                 {
@@ -259,6 +281,7 @@ namespace B2SBackglassServerEXE.Forms
                     
                     g.DrawImage(imageToRender, scaledLocation.X, scaledLocation.Y, 
                         scaledSize.Width, scaledSize.Height);
+                    renderedCount++;
                 }
             }
 
