@@ -49,6 +49,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="Core\B2SSettings.cs" />
     <Compile Include="Core\RegistryMonitor.cs" />
+    <Compile Include="Core\BackglassLoader.cs" />
     <Compile Include="Forms\BackglassForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -56,6 +57,7 @@
       <DependentUpon>BackglassForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Models\TableSettings.cs" />
+    <Compile Include="Models\BackglassData.cs" />
     <Compile Include="Utilities\Win32Api.cs" />
   </ItemGroup>
   <ItemGroup>
