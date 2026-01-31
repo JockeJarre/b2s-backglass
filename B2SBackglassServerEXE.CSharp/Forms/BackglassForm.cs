@@ -272,9 +272,16 @@ namespace B2SBackglassServerEXE.Forms
 
         private void RegistryMonitor_LampsChanged(object? sender, LampStateChangedEventArgs e)
         {
+            System.Diagnostics.Debug.WriteLine($"[REGISTRY] Lamps changed: {e.States.Length} lamps");
+            
             if (_backglassData == null)
+            {
+                System.Diagnostics.Debug.WriteLine("[REGISTRY] No backglass data loaded!");
                 return;
+            }
 
+            int changedCount = 0;
+            
             // Update lamp states
             for (int i = 0; i < e.States.Length && i < 401; i++)
             {
@@ -290,14 +297,18 @@ namespace B2SBackglassServerEXE.Forms
                         if (illumination.IsOn != shouldBeOn)
                         {
                             illumination.IsOn = shouldBeOn;
-                            // Trigger redraw
-                            this.Invalidate();
+                            changedCount++;
+                            System.Diagnostics.Debug.WriteLine($"[REGISTRY] Lamp {i} -> {shouldBeOn} (Illum: {illumination.Name})");
                         }
                     }
                 }
             }
 
-            System.Diagnostics.Debug.WriteLine($"Lamps changed: {e.States.Length} lamps");
+            if (changedCount > 0)
+            {
+                System.Diagnostics.Debug.WriteLine($"[REGISTRY] {changedCount} illuminations changed, invalidating...");
+                this.Invalidate();
+            }
         }
 
         private void RegistryMonitor_SolenoidsChanged(object? sender, SolenoidStateChangedEventArgs e)

@@ -41,6 +41,8 @@ namespace B2SBackglassServerEXE.Core
             if (IsMonitoring)
                 return;
 
+            System.Diagnostics.Debug.WriteLine("[REGMON] Starting registry monitoring...");
+
             // Initialize cached values
             _lastLampsValue = ReadRegistryValue("B2SLamps") ?? string.Empty;
             _lastSolenoidsValue = ReadRegistryValue("B2SSolenoids") ?? string.Empty;
@@ -48,8 +50,12 @@ namespace B2SBackglassServerEXE.Core
             _lastAnimationsValue = ReadRegistryValue("B2SAnimations") ?? string.Empty;
             _lastSetDataValue = ReadRegistryValue("B2SSetData") ?? string.Empty;
 
+            System.Diagnostics.Debug.WriteLine($"[REGMON] Initial B2SLamps value: {_lastLampsValue.Substring(0, Math.Min(50, _lastLampsValue.Length))}...");
+
             _pollTimer.Start();
             IsMonitoring = true;
+            
+            System.Diagnostics.Debug.WriteLine("[REGMON] Monitoring started");
         }
 
         public void StopMonitoring()
@@ -74,15 +80,16 @@ namespace B2SBackglassServerEXE.Core
         {
             // Check lamps
             string currentLamps = ReadRegistryValue("B2SLamps") ?? string.Empty;
-            if (currentLamps != _lastLampsValue)
+            if (currentLamps != _lastLampsValue && !string.IsNullOrEmpty(currentLamps))
             {
+                System.Diagnostics.Debug.WriteLine($"[REGMON] Lamps registry changed: {currentLamps.Substring(0, Math.Min(50, currentLamps.Length))}...");
                 ProcessLampChanges(currentLamps);
                 _lastLampsValue = currentLamps;
             }
 
             // Check solenoids
             string currentSolenoids = ReadRegistryValue("B2SSolenoids") ?? string.Empty;
-            if (currentSolenoids != _lastSolenoidsValue)
+            if (currentSolenoids != _lastSolenoidsValue && !string.IsNullOrEmpty(currentSolenoids))
             {
                 ProcessSolenoidChanges(currentSolenoids);
                 _lastSolenoidsValue = currentSolenoids;
@@ -90,7 +97,7 @@ namespace B2SBackglassServerEXE.Core
 
             // Check GI strings
             string currentGIStrings = ReadRegistryValue("B2SGIStrings") ?? string.Empty;
-            if (currentGIStrings != _lastGIStringsValue)
+            if (currentGIStrings != _lastGIStringsValue && !string.IsNullOrEmpty(currentGIStrings))
             {
                 ProcessGIStringChanges(currentGIStrings);
                 _lastGIStringsValue = currentGIStrings;
@@ -98,7 +105,7 @@ namespace B2SBackglassServerEXE.Core
 
             // Check animations
             string currentAnimations = ReadRegistryValue("B2SAnimations") ?? string.Empty;
-            if (currentAnimations != _lastAnimationsValue)
+            if (currentAnimations != _lastAnimationsValue && !string.IsNullOrEmpty(currentAnimations))
             {
                 ProcessAnimationChanges(currentAnimations);
                 _lastAnimationsValue = currentAnimations;
@@ -106,7 +113,7 @@ namespace B2SBackglassServerEXE.Core
 
             // Check set data
             string currentSetData = ReadRegistryValue("B2SSetData") ?? string.Empty;
-            if (currentSetData != _lastSetDataValue)
+            if (currentSetData != _lastSetDataValue && !string.IsNullOrEmpty(currentSetData))
             {
                 ProcessDataChanges(currentSetData);
                 _lastSetDataValue = currentSetData;
