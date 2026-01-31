@@ -15,6 +15,7 @@ namespace B2SBackglassServerEXE.Forms
         private Models.BackglassData? _backglassData;
         private Dictionary<int, bool> _lampStates = new Dictionary<int, bool>();
         private Rendering.AnimationEngine? _animationEngine;
+        private DMDForm? _dmdForm;
 
         public BackglassForm()
         {
@@ -110,6 +111,17 @@ namespace B2SBackglassServerEXE.Forms
                     // Create animation engine
                     _animationEngine = new Rendering.AnimationEngine(_backglassData, this);
 
+                    // Create DMD if needed
+                    if (!B2SSettings.Instance.HideDMD && HasDMDIlluminations())
+                    {
+                        _dmdForm = new DMDForm(_backglassData);
+                        _dmdForm.Location = new Point(
+                            this.Location.X + _backglassData.DMDLocation.X,
+                            this.Location.Y + _backglassData.DMDLocation.Y
+                        );
+                        _dmdForm.Show(this);
+                    }
+
                     System.Diagnostics.Debug.WriteLine($"Loaded backglass: {_backglassData.Name}");
                     System.Diagnostics.Debug.WriteLine($"Size: {_backglassData.BackglassSize}");
                     System.Diagnostics.Debug.WriteLine($"Illuminations: {_backglassData.Illuminations.Count}");
@@ -129,6 +141,15 @@ namespace B2SBackglassServerEXE.Forms
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
             }
+        }
+
+        private bool HasDMDIlluminations()
+        {
+            if (_backglassData == null)
+                return false;
+
+            return _backglassData.Illuminations.Any(i => 
+                i.Parent.Equals("DMD", StringComparison.OrdinalIgnoreCase));
         }
 
         private void RenderTimer_Tick(object? sender, EventArgs e)
@@ -292,6 +313,13 @@ namespace B2SBackglassServerEXE.Forms
             _registryMonitor?.StopMonitoring();
             _registryMonitor?.Dispose();
             _animationEngine?.Dispose();
+            
+            // Close DMD
+            if (_dmdForm != null)
+            {
+                _dmdForm.Close();
+                _dmdForm.Dispose();
+            }
 
             base.OnFormClosing(e);
         }
@@ -304,6 +332,22 @@ namespace B2SBackglassServerEXE.Forms
             if (e.KeyCode == Keys.Escape)
             {
                 this.Close();
+            }
+
+            // Handle F1 key to show settings
+            if (e.KeyCode == Keys.F1)
+            {
+                ShowSettings();
+            }
+        }
+
+        private void ShowSettings()
+        {
+            var settingsForm = new SettingsForm();
+            if (settingsForm.ShowDialog(this) == DialogResult.OK)
+            {
+                // Settings saved, reload if needed
+                System.Diagnostics.Debug.WriteLine("Settings updated");
             }
         }
     }
