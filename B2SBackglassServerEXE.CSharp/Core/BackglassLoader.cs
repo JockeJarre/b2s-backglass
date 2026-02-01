@@ -252,6 +252,7 @@ namespace B2SBackglassServerEXE.Core
                             if (score != null)
                             {
                                 data.Scores.Add(score);
+                                data.ScoresByID[score.ID] = score;
                             }
                         }
                     }
@@ -444,6 +445,7 @@ namespace B2SBackglassServerEXE.Core
                 {
                     ID = GetAttributeInt(node, "ID", 0),
                     Name = GetAttributeString(node, "Name", ""),
+                    Parent = GetAttributeString(node, "Parent", "Backglass"),
                     Location = new Point(
                         GetAttributeInt(node, "LocX", 0),
                         GetAttributeInt(node, "LocY", 0)
@@ -452,30 +454,37 @@ namespace B2SBackglassServerEXE.Core
                         GetAttributeInt(node, "Width", 100),
                         GetAttributeInt(node, "Height", 100)
                     ),
-                    DigitCount = GetAttributeInt(node, "DigitCount", 6),
+                    Digits = GetAttributeInt(node, "Digits", 6),
                     Spacing = GetAttributeInt(node, "Spacing", 0),
-                    RollingDirection = GetAttributeInt(node, "RollingDirection", 0)
+                    RollingDirection = GetAttributeInt(node, "RollingDirection", 0),
+                    RollingInterval = rollingInterval,
+                    ReelType = GetAttributeString(node, "ReelType", ""),
+                    Glow = GetAttributeInt(node, "Glow", 0) / 100f,
+                    Thickness = GetAttributeInt(node, "Thickness", 0) / 100f,
+                    Shear = GetAttributeInt(node, "Shear", 0) / 100f,
+                    DisplayState = GetAttributeInt(node, "DisplayState", 0) == 0, // 0=visible, 1=hidden
+                    B2SStartDigit = GetAttributeInt(node, "B2SStartDigit", 0),
+                    B2SScoreType = GetAttributeInt(node, "B2SScoreType", 0),
+                    B2SPlayerNo = GetAttributeInt(node, "B2SPlayerNo", 0),
+                    ReelIlluImageSet = GetAttributeInt(node, "ReelIlluImageSet", 0),
+                    ReelIlluB2SID = GetAttributeInt(node, "ReelIlluB2SID", 0),
+                    ReelIlluB2SValue = GetAttributeInt(node, "ReelIlluB2SValue", 0)
                 };
 
-                // Parse digit images (0-9)
-                var digitNodes = node.SelectNodes("Digit");
-                if (digitNodes != null)
+                // Parse colors
+                string litColor = GetAttributeString(node, "ReelLitColor", "");
+                if (!string.IsNullOrEmpty(litColor))
                 {
-                    foreach (XmlElement digitNode in digitNodes)
-                    {
-                        int value = GetAttributeInt(digitNode, "Value", 0);
-                        string imageData = GetAttributeString(digitNode, "Image", "");
-                        if (!string.IsNullOrEmpty(imageData))
-                        {
-                            score.Digits.Add(new Models.ScoreDigit
-                            {
-                                Value = value,
-                                Image = Base64ToImage(imageData)
-                            });
-                        }
-                    }
+                    score.ReelLitColor = ColorTranslator.FromHtml(litColor);
                 }
 
+                string darkColor = GetAttributeString(node, "ReelDarkColor", "");
+                if (!string.IsNullOrEmpty(darkColor))
+                {
+                    score.ReelDarkColor = ColorTranslator.FromHtml(darkColor);
+                }
+
+                System.Diagnostics.Debug.WriteLine($"[LOADER] Parsed score ID={score.ID}, Type={score.ReelType}, Digits={score.Digits}, Parent={score.Parent}");
                 return score;
             }
             catch (Exception ex)
@@ -548,6 +557,8 @@ namespace B2SBackglassServerEXE.Core
                         }
                     }
                 }
+                
+                System.Diagnostics.Debug.WriteLine($"[LOADER] Loaded {data.ReelStorage.ReelImages.Count} reel images, {data.ReelStorage.ReelIlluImages.Count} illuminated images");
             }
             catch (Exception ex)
             {
@@ -557,14 +568,82 @@ namespace B2SBackglassServerEXE.Core
 
         private void ParseReelImageNode(XmlElement node, Models.BackglassData data)
         {
-            // This would create reel objects - simplified for now
-            System.Diagnostics.Debug.WriteLine($"[LOADER] Parsing reel image node: {node.OuterXml.Substring(0, Math.Min(100, node.OuterXml.Length))}");
+            try
+            {
+                string name = GetAttributeString(node, "Name", "");
+                string imageData = GetAttributeString(node, "Image", "");
+                
+                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(imageData))
+                {
+                    var image = Base64ToImage(imageData);
+                    if (image != null)
+                    {
+                        data.ReelStorage.ReelImages[name] = image;
+                        System.Diagnostics.Debug.WriteLine($"[LOADER] Added reel image: {name}");
+                        
+                        // Parse intermediate images if present
+                        int intermediateCount = GetAttributeInt(node, "CountOfIntermediates", 0);
+                        for (int i = 1; i <= intermediateCount; i++)
+                        {
+                            string intImageData = GetAttributeString(node, $"IntermediateImage{i}", "");
+                            if (!string.IsNullOrEmpty(intImageData))
+                            {
+                                var intImage = Base64ToImage(intImageData);
+                                if (intImage != null)
+                                {
+                                    string intName = $"{name}_{i}";
+                                    data.ReelStorage.ReelIntermediateImages[intName] = intImage;
+                                    System.Diagnostics.Debug.WriteLine($"[LOADER] Added intermediate reel image: {intName}");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error parsing reel image node: {ex.Message}");
+            }
         }
 
         private void ParseIlluminatedReelNode(XmlElement node, Models.BackglassData data)
         {
-            // This would create illuminated reel objects - simplified for now
-            System.Diagnostics.Debug.WriteLine($"[LOADER] Parsing illuminated reel node");
+            try
+            {
+                string name = GetAttributeString(node, "Name", "");
+                string imageData = GetAttributeString(node, "Image", "");
+                
+                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(imageData))
+                {
+                    var image = Base64ToImage(imageData);
+                    if (image != null)
+                    {
+                        data.ReelStorage.ReelIlluImages[name] = image;
+                        System.Diagnostics.Debug.WriteLine($"[LOADER] Added illuminated reel image: {name}");
+                        
+                        // Parse intermediate illuminated images if present
+                        int intermediateCount = GetAttributeInt(node, "CountOfIntermediates", 0);
+                        for (int i = 1; i <= intermediateCount; i++)
+                        {
+                            string intImageData = GetAttributeString(node, $"IntermediateImage{i}", "");
+                            if (!string.IsNullOrEmpty(intImageData))
+                            {
+                                var intImage = Base64ToImage(intImageData);
+                                if (intImage != null)
+                                {
+                                    string intName = $"{name}_{i}";
+                                    data.ReelStorage.ReelIntermediateIlluImages[intName] = intImage;
+                                    System.Diagnostics.Debug.WriteLine($"[LOADER] Added intermediate illuminated reel image: {intName}");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error parsing illuminated reel node: {ex.Message}");
+            }
         }
     }
 }

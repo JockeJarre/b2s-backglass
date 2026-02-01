@@ -50,6 +50,9 @@
     <Compile Include="Core\B2SSettings.cs" />
     <Compile Include="Core\RegistryMonitor.cs" />
     <Compile Include="Core\BackglassLoader.cs" />
+    <Compile Include="Controls\ScoreDisplay.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Forms\BackglassForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -80,6 +83,7 @@
     <None Include="app.manifest" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="Controls\" />
     <Folder Include="Core\" />
     <Folder Include="Forms\" />
     <Folder Include="Models\" />

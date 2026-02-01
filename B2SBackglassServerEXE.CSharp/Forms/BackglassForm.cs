@@ -17,6 +17,8 @@ namespace B2SBackglassServerEXE.Forms
         private Rendering.AnimationEngine? _animationEngine;
         private DMDForm? _dmdForm;
         private SizeF _scaleFactor = new SizeF(1.0f, 1.0f);
+        private Dictionary<int, Controls.ScoreDisplay> _scoreDisplays = new Dictionary<int, Controls.ScoreDisplay>();
+
 
         public BackglassForm()
         {
@@ -155,6 +157,9 @@ namespace B2SBackglassServerEXE.Forms
 
                     // Create animation engine
                     _animationEngine = new Rendering.AnimationEngine(_backglassData, this);
+                    
+                    // Create score/reel displays
+                    CreateScoreDisplays();
 
                     // Create DMD if needed
                     if (!B2SSettings.Instance.HideDMD && HasDMDIlluminations())
@@ -191,6 +196,35 @@ namespace B2SBackglassServerEXE.Forms
                     "B2S Backglass Server",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
+            }
+        }
+
+        private void CreateScoreDisplays()
+        {
+            if (_backglassData == null)
+                return;
+
+            System.Diagnostics.Debug.WriteLine($"[SCORES] Creating {_backglassData.Scores.Count} score displays");
+
+            foreach (var score in _backglassData.Scores)
+            {
+                // Only create score displays that are on the backglass (not DMD)
+                if (score.Parent.Equals("Backglass", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        var scoreDisplay = new Controls.ScoreDisplay(score, _backglassData.ReelStorage, _scaleFactor.Width);
+                        _scoreDisplays[score.ID] = scoreDisplay;
+                        this.Controls.Add(scoreDisplay);
+                        scoreDisplay.BringToFront();
+
+                        System.Diagnostics.Debug.WriteLine($"[SCORES] Created score display ID={score.ID}, Type={score.ReelType}, Digits={score.Digits}, Pos=({scoreDisplay.Location.X},{scoreDisplay.Location.Y}), Size=({scoreDisplay.Width}x{scoreDisplay.Height})");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[SCORES] Error creating score display ID={score.ID}: {ex.Message}");
+                    }
+                }
             }
         }
 

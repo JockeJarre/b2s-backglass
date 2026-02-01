@@ -34,17 +34,20 @@ namespace B2SBackglassServerEXE.Models
         // Collections
         public List<Illumination> Illuminations { get; set; } = new List<Illumination>();
         public List<Score> Scores { get; set; } = new List<Score>();
-        public List<Reel> Reels { get; set; } = new List<Reel>();
         public List<Animation> Animations { get; set; } = new List<Animation>();
         public List<Sound> Sounds { get; set; } = new List<Sound>();
         
         // Reel rolling interval
         public int ReelRollingInterval { get; set; } = 50;
         
+        // Reel image storage (global for all reels)
+        public ReelImageStorage ReelStorage { get; set; } = new ReelImageStorage();
+        
         // Lookup dictionaries for fast access
         public Dictionary<int, Illumination> IlluminationsByID { get; set; } = new Dictionary<int, Illumination>();
         public Dictionary<string, Illumination> IlluminationsByName { get; set; } = new Dictionary<string, Illumination>();
         public Dictionary<string, Animation> AnimationsByName { get; set; } = new Dictionary<string, Animation>();
+        public Dictionary<int, Score> ScoresByID { get; set; } = new Dictionary<int, Score>();
     }
 
     /// <summary>
@@ -122,46 +125,40 @@ namespace B2SBackglassServerEXE.Models
     {
         public int ID { get; set; }
         public string Name { get; set; } = string.Empty;
+        public string Parent { get; set; } = "Backglass"; // "Backglass" or "DMD"
         public Point Location { get; set; }
         public Size Size { get; set; }
-        public int DigitCount { get; set; }
-        public int Spacing { get; set; }
-        public int RollingDirection { get; set; } // 0=Down, 1=Up
-        public List<ScoreDigit> Digits { get; set; } = new List<ScoreDigit>();
-    }
-
-    /// <summary>
-    /// Represents a single digit image for a score display
-    /// </summary>
-    public class ScoreDigit
-    {
-        public int Value { get; set; } // 0-9
-        public Image? Image { get; set; }
-    }
-
-    /// <summary>
-    /// Represents an EM (electromechanical) reel
-    /// </summary>
-    public class Reel
-    {
-        public int ID { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public int Type { get; set; } // 0=Normal, 1=Illuminated
-        public Point Location { get; set; }
-        public Size Size { get; set; }
+        public int Digits { get; set; }
         public int Spacing { get; set; }
         public int RollingDirection { get; set; } // 0=Down, 1=Up
         public int RollingInterval { get; set; } = 50;
-        public List<ReelImage> Images { get; set; } = new List<ReelImage>();
-        public List<ReelImage> IlluminatedImages { get; set; } = new List<ReelImage>();
+        public string ReelType { get; set; } = string.Empty;
+        public Color ReelLitColor { get; set; } = Color.White;
+        public Color ReelDarkColor { get; set; } = Color.Black;
+        public float Glow { get; set; }
+        public float Thickness { get; set; }
+        public float Shear { get; set; }
+        public bool DisplayState { get; set; } = true; // false=hidden
+        public int B2SStartDigit { get; set; }
+        public int B2SScoreType { get; set; } // 0=NotUsed, 1=Scores, 2=Credits
+        public int B2SPlayerNo { get; set; }
+        public int ReelIlluImageSet { get; set; }
+        public int ReelIlluB2SID { get; set; }
+        public int ReelIlluB2SValue { get; set; }
+        
+        // Reel images storage - keyed by position (0-9, etc.)
+        public Dictionary<string, Image> ReelImages { get; set; } = new Dictionary<string, Image>();
+        public Dictionary<string, Image> ReelIntermediateImages { get; set; } = new Dictionary<string, Image>();
     }
 
     /// <summary>
-    /// Represents a single reel position image
+    /// Global reel image storage (shared across all score displays)
     /// </summary>
-    public class ReelImage
+    public class ReelImageStorage
     {
-        public int Value { get; set; }
-        public Image? Image { get; set; }
+        public Dictionary<string, Image> ReelImages { get; set; } = new Dictionary<string, Image>();
+        public Dictionary<string, Image> ReelIntermediateImages { get; set; } = new Dictionary<string, Image>();
+        public Dictionary<string, Image> ReelIlluImages { get; set; } = new Dictionary<string, Image>();
+        public Dictionary<string, Image> ReelIntermediateIlluImages { get; set; } = new Dictionary<string, Image>();
     }
 }
