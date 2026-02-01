@@ -109,9 +109,47 @@ Public Class formBackglassServerRegApp
                         regRoot.OpenSubKey("WOW6432Node\CLSID", True).DeleteSubKeyTree(clsID, False)
                     End Using
                 End If
+                
+                ' Ask which DLL to register
+                Dim dllToRegister As String = "B2SBackglassServer.DLL"
+                If Not CommandSilent Then
+                    Dim hasComServer As Boolean = File.Exists(Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "B2S.ComServer.dll"))
+                    Dim hasLegacyServer As Boolean = File.Exists(Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "B2SBackglassServer.DLL"))
+                    
+                    If hasComServer AndAlso hasLegacyServer Then
+                        Dim dllChoice As DialogResult = MessageBox.Show(
+                            "Which COM server do you want to register?" & vbCrLf & vbCrLf &
+                            "YES = New C# B2S.ComServer.dll (recommended, smaller, faster)" & vbCrLf &
+                            "NO = Legacy VB B2SBackglassServer.dll" & vbCrLf & vbCrLf &
+                            "Both DLLs were found in the installation directory.",
+                            "Select COM Server to Register",
+                            MessageBoxButtons.YesNoCancel,
+                            MessageBoxIcon.Question)
+                        
+                        If dllChoice = DialogResult.Yes Then
+                            dllToRegister = "B2S.ComServer.dll"
+                        ElseIf dllChoice = DialogResult.No Then
+                            dllToRegister = "B2SBackglassServer.DLL"
+                        Else
+                            ' Cancel - don't register anything
+                            GoTo SkipRegistration
+                        End If
+                    ElseIf hasComServer Then
+                        dllToRegister = "B2S.ComServer.dll"
+                        MessageBox.Show("Only B2S.ComServer.dll found. Will register the new C# COM server.", "COM Server Selection", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                    ElseIf hasLegacyServer Then
+                        dllToRegister = "B2SBackglassServer.DLL"
+                        MessageBox.Show("Only B2SBackglassServer.dll found. Will register the legacy VB COM server.", "COM Server Selection", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                    Else
+                        MessageBox.Show("Neither B2S.ComServer.dll nor B2SBackglassServer.dll found in the installation directory!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                        GoTo SkipRegistration
+                    End If
+                End If
+                
                 ' do the register operation
-                ShellAndWait(regasmpath, "B2SBackglassServer.DLL")
-                ShellAndWait(regasmpath.Replace("\Framework\", "\Framework64\"), "B2SBackglassServer.DLL")
+                ShellAndWait(regasmpath, dllToRegister)
+                ShellAndWait(regasmpath.Replace("\Framework\", "\Framework64\"), dllToRegister)
+SkipRegistration:
             End If
             If Not CommandSilent Then CheckB2SServer(True) 'Make sure no window is opened on silent option
         End If
