@@ -113,14 +113,25 @@ namespace B2SBackglassServerEXE.Forms
 
                     System.Diagnostics.Debug.WriteLine($"Backglass file size: {backglassFileSize}");
                     System.Diagnostics.Debug.WriteLine($"Target window size: {targetSize}");
+                    System.Diagnostics.Debug.WriteLine($"Background image size: {_backglassData.BackgroundImage?.Size}");
 
                     // Set window size from screen settings
                     this.ClientSize = targetSize;
 
-                    // Calculate scale factor from file size to window size
-                    _scaleFactor = Utilities.ImageScaler.GetScaleFactor(backglassFileSize, targetSize);
+                    // Calculate scale factor: BackgroundImage.Size / BackglassSize (from VB logic)
+                    // This tells us how much bigger the background image is compared to the original design size
+                    if (_backglassData.BackgroundImage != null)
+                    {
+                        _scaleFactor = Utilities.ImageScaler.GetScaleFactor(
+                            _backglassData.BackgroundImage.Size, 
+                            backglassFileSize);
+                    }
+                    else
+                    {
+                        _scaleFactor = new SizeF(1.0f, 1.0f);
+                    }
                     
-                    System.Diagnostics.Debug.WriteLine($"Scale factor: {_scaleFactor.Width}x{_scaleFactor.Height}");
+                    System.Diagnostics.Debug.WriteLine($"Scale factor (BgImg/FileSize): {_scaleFactor.Width}x{_scaleFactor.Height}");
 
                     // Position window from screen settings
                     this.Location = Utilities.ScreenManager.GetBackglassLocation();
@@ -239,6 +250,13 @@ namespace B2SBackglassServerEXE.Forms
                 }
             }
 
+            // Render "On" background image if it exists and conditions are met
+            if (_backglassData.BackglassOnImage != null)
+            {
+                // TODO: Determine when to show On vs Off background based on game state
+                // For now, always show the Off background (already drawn above)
+            }
+
             // Render illuminations in Z-order
             var sortedIlluminations = _backglassData.Illuminations
                 .Where(i => i.Parent == "Backglass")
@@ -275,15 +293,32 @@ namespace B2SBackglassServerEXE.Forms
 
                 if (imageToRender != null)
                 {
-                    // Apply scaling to both position AND size
-                    // The illumination.Location and illumination.Size are from the .directb2s file
-                    // and need to be scaled to match the window size
-                    var scaledLocation = Utilities.ImageScaler.ScalePoint(illumination.Location, _scaleFactor);
-                    var scaledSize = Utilities.ImageScaler.ScaleSize(illumination.Size, _scaleFactor);
+                    // CRITICAL INSIGHT from VB code analysis:
+                    // XML coordinates are ALREADY relative to the BackgroundImage size
+                    // So we just need to scale them to the current window size
+                    // Formula: XmlPosition * (WindowSize / BackgroundImageSize)
+                    
+                    float scaleX, scaleY;
+                    if (_backglassData.BackgroundImage != null)
+                    {
+                        scaleX = (float)this.ClientSize.Width / _backglassData.BackgroundImage.Width;
+                        scaleY = (float)this.ClientSize.Height / _backglassData.BackgroundImage.Height;
+                    }
+                    else
+                    {
+                        // Fallback if no background image
+                        scaleX = (float)this.ClientSize.Width / _backglassData.BackglassSize.Width;
+                        scaleY = (float)this.ClientSize.Height / _backglassData.BackglassSize.Height;
+                    }
+                    
+                    // Scale positions and sizes directly from XML values
+                    int finalX = (int)(illumination.Location.X * scaleX);
+                    int finalY = (int)(illumination.Location.Y * scaleY);
+                    int finalWidth = (int)(illumination.Size.Width * scaleX);
+                    int finalHeight = (int)(illumination.Size.Height * scaleY);
                     
                     // Draw the image scaled to the target size
-                    g.DrawImage(imageToRender, scaledLocation.X, scaledLocation.Y, 
-                        scaledSize.Width, scaledSize.Height);
+                    g.DrawImage(imageToRender, finalX, finalY, finalWidth, finalHeight);
                     renderedCount++;
                 }
             }
