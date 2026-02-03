@@ -43,12 +43,12 @@ namespace B2SBackglassServerEXE.Utilities
 
         public static SizeF GetScaleFactor(Size original, Size target)
         {
-            if (original.Width == 0 || original.Height == 0)
+            if (original.Width == 0 || original.Height == 0 || target.Width == 0 || target.Height == 0)
                 return new SizeF(1.0f, 1.0f);
 
             return new SizeF(
-                (float)target.Width / original.Width,
-                (float)target.Height / original.Height
+                (float)original.Width / target.Width,
+                (float)original.Height / target.Height
             );
         }
 

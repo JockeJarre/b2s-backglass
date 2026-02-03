@@ -110,6 +110,10 @@ Public Class formBackglassServerRegApp
                     End Using
                 End If
                 
+                ' Clean up ALL old B2S.* ProgIDs from legacy VB.NET DLL (these were accidentally COM-visible)
+                ' The new C# B2S.ComServer.dll only exposes B2S.Server, so these are no longer needed
+                CleanupLegacyB2SEntries()
+                
                 ' Ask which DLL to register
                 Dim dllToRegister As String = "B2SBackglassServer.DLL"
                 If Not CommandSilent Then
@@ -330,6 +334,76 @@ SkipRegistration:
                 Next
             End If
         Catch
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Cleans up all legacy B2S.* ProgIDs that were accidentally COM-visible in the old VB.NET DLL.
+    ''' The new C# B2S.ComServer.dll only exposes B2S.Server, so these orphaned entries cause conflicts.
+    ''' </summary>
+    Private Sub CleanupLegacyB2SEntries()
+        ' List of ProgIDs that were accidentally exposed in the old B2SBackglassServer.dll
+        ' These are internal classes that should never have been COM-visible
+        Dim legacyProgIds As String() = {
+            "B2S.Background",
+            "B2S.B2SAnimation",
+            "B2S.B2SBaseBox",
+            "B2S.B2SData",
+            "B2S.B2SData+AnimationCollection",
+            "B2S.B2SData+FuzzyFileName",
+            "B2S.B2SData+IlluminationGroupCollection",
+            "B2S.B2SData+PictureBoxCollection",
+            "B2S.B2SData+ReelBoxCollection",
+            "B2S.B2SData+ZOrderCollection",
+            "B2S.B2SLED",
+            "B2S.B2SLEDBox",
+            "B2S.B2SPictureBox",
+            "B2S.B2SPlayer",
+            "B2S.B2SPlayer+ControlCollection",
+            "B2S.B2SReelBox",
+            "B2S.B2SReelDisplay",
+            "B2S.B2SReelDisplay+ReelBoxCollection",
+            "B2S.B2SScreen",
+            "B2S.B2SSettings",
+            "B2S.B2SSnifferPanel",
+            "B2S.B2SStatistics",
+            "B2S.B2SStatistics+StatsCollection",
+            "B2S.B2SVersionInfo",
+            "B2S.Dream7Display",
+            "B2S.formBackglass",
+            "B2S.formDMD",
+            "B2S.formMode",
+            "B2S.formSettings",
+            "B2S.Processes"
+        }
+
+        Try
+            Using regRoot As RegistryKey = Registry.ClassesRoot
+                For Each progId As String In legacyProgIds
+                    Try
+                        ' Get the CLSID for this ProgID
+                        Dim clsid As String = Nothing
+                        Using progIdKey As RegistryKey = regRoot.OpenSubKey(progId & "\CLSID", False)
+                            If progIdKey IsNot Nothing Then
+                                clsid = CStr(progIdKey.GetValue(""))
+                            End If
+                        End Using
+
+                        ' Delete the ProgID entry
+                        regRoot.DeleteSubKeyTree(progId, False)
+
+                        ' Delete the CLSID entries if we found one
+                        If Not String.IsNullOrEmpty(clsid) Then
+                            regRoot.OpenSubKey("CLSID", True)?.DeleteSubKeyTree(clsid, False)
+                            regRoot.OpenSubKey("WOW6432Node\CLSID", True)?.DeleteSubKeyTree(clsid, False)
+                        End If
+                    Catch
+                        ' Ignore errors for individual entries - they may not exist
+                    End Try
+                Next
+            End Using
+        Catch
+            ' Ignore errors - user may not have admin rights or entries don't exist
         End Try
     End Sub
 
