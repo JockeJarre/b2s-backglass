@@ -30,6 +30,7 @@ namespace B2S.ComServer
         private string _tableName = string.Empty;
         private string _b2sName = string.Empty;
         private string _gameName = string.Empty;
+        private int _b2sSetDataCallCount = 0;
 
         [DllImport("user32.dll")]
         private static extern bool IsWindow(IntPtr hWnd);
@@ -42,21 +43,53 @@ namespace B2S.ComServer
 
         public Server()
         {
-            RegistryHelper.InitializeRegistry();
-            LoadSettings();
-            InitializePlugins();
-            InitializeTimer();
+            Logger.LogSeparator("NEW B2S.Server INSTANCE");
+            Logger.Log($"Constructor called. Assembly: {typeof(Server).Assembly.Location}");
+            Logger.Log($"Current directory: {Directory.GetCurrentDirectory()}");
+            Logger.Log($"AppDomain base: {AppDomain.CurrentDomain.BaseDirectory}");
+            
+            try
+            {
+                RegistryHelper.InitializeRegistry();
+                Logger.Log("Registry initialized");
+                
+                LoadSettings();
+                Logger.Log("Settings loaded");
+                
+                InitializePlugins();
+                Logger.Log("Plugins initialized");
+                
+                InitializeTimer();
+                Logger.Log("Timer initialized");
+                
+                Logger.Log("Constructor completed successfully");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogException(ex, "Constructor");
+                throw;
+            }
         }
 
         private void LoadSettings()
         {
-            // Plugin settings would be loaded here if needed
+            Logger.Log("Loading settings...");
+            
             bool pluginsOn = ReadRegistrySetting("Software\\B2S", "ArePluginsOn", "0") == "1";
+            Logger.Log($"Plugins enabled: {pluginsOn}");
             
             if (pluginsOn)
             {
-                _pluginHost = new PluginHost(true);
-                RegistryHelper.SetValue("Plugins", _pluginHost.PluginCount);
+                try
+                {
+                    _pluginHost = new PluginHost(true);
+                    Logger.Log($"PluginHost created, count: {_pluginHost.PluginCount}");
+                    RegistryHelper.SetValue("Plugins", _pluginHost.PluginCount);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogException(ex, "Creating PluginHost");
+                }
             }
             else
             {
@@ -98,13 +131,16 @@ namespace B2S.ComServer
             {
                 if (_vpinmame == null)
                 {
+                    Logger.Log("Creating VPinMAME.Controller instance...");
                     Type? type = Type.GetTypeFromProgID("VPinMAME.Controller");
                     if (type != null)
                     {
                         _vpinmame = Activator.CreateInstance(type);
+                        Logger.Log($"VPinMAME.Controller created: {_vpinmame?.GetType().FullName}");
                     }
                     else
                     {
+                        Logger.Log("ERROR: VPinMAME.Controller ProgID not found!");
                         throw new COMException("VPinMAME.Controller not found");
                     }
                 }
@@ -142,31 +178,92 @@ namespace B2S.ComServer
 
         private void StartBackglassEXE()
         {
+            Logger.Log("=== StartBackglassEXE() BEGIN ===");
+            Logger.Log($"Looking for: {EXE_NAME}");
+            Logger.Log($"Current directory: {Directory.GetCurrentDirectory()}");
+            Logger.Log($"AppDomain base: {AppDomain.CurrentDomain.BaseDirectory}");
+            
+            // Get the directory where B2S.ComServer.dll is located
+            string? dllDirectory = Path.GetDirectoryName(typeof(Server).Assembly.Location);
+            Logger.Log($"DLL directory: {dllDirectory}");
+            
             string? exePath = null;
             
-            if (File.Exists(Path.Combine(Directory.GetCurrentDirectory(), EXE_NAME)))
+            string path1 = Path.Combine(Directory.GetCurrentDirectory(), EXE_NAME);
+            string path2 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, EXE_NAME);
+            string path3 = !string.IsNullOrEmpty(dllDirectory) ? Path.Combine(dllDirectory, EXE_NAME) : string.Empty;
+            
+            Logger.Log($"Checking path 1 (current dir): {path1} - Exists: {File.Exists(path1)}");
+            Logger.Log($"Checking path 2 (AppDomain): {path2} - Exists: {File.Exists(path2)}");
+            Logger.Log($"Checking path 3 (DLL dir): {path3} - Exists: {(!string.IsNullOrEmpty(path3) ? File.Exists(path3).ToString() : "N/A")}");
+
+            if (!string.IsNullOrEmpty(path3) && File.Exists(path3))
+            {
+                exePath = dllDirectory;
+                Logger.Log($"Using DLL directory: {exePath}");
+            }
+            else if (File.Exists(path1))
             {
                 exePath = Directory.GetCurrentDirectory();
+                Logger.Log($"Using current directory: {exePath}");
             }
-            else if (File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, EXE_NAME)))
+            else if (File.Exists(path2))
             {
                 exePath = AppDomain.CurrentDomain.BaseDirectory;
+                Logger.Log($"Using AppDomain base: {exePath}");
             }
             
             if (exePath == null)
             {
+                Logger.Log($"ERROR: Cannot find '{EXE_NAME}' in any location!");
+                
+                // List files in DLL directory for debugging
+                if (!string.IsNullOrEmpty(dllDirectory))
+                {
+                    try
+                    {
+                        var files = Directory.GetFiles(dllDirectory, "*.exe");
+                        Logger.Log($"EXE files in DLL dir: {string.Join(", ", files.Select(Path.GetFileName))}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"Could not list DLL directory: {ex.Message}");
+                    }
+                }
+                
                 throw new FileNotFoundException($"Cannot find '{EXE_NAME}'");
             }
             
+            Logger.Log($"Setting registry values: GameName='{_gameName}', B2SName='{_b2sName}'");
             RegistryHelper.SetValue("B2SGameName", _gameName);
             RegistryHelper.SetValue("B2SB2SName", _b2sName);
             RegistryHelper.CleanupBackglassRegistry();
+            Logger.Log("Registry cleanup done");
             
-            _process = new Process();
-            _process.StartInfo.FileName = Path.Combine(exePath, EXE_NAME);
-            _process.StartInfo.Arguments = $"\"{_tableName}\" \"0\"";
-            _process.StartInfo.UseShellExecute = true;
-            _process.Start();
+            string fullExePath = Path.Combine(exePath, EXE_NAME);
+            string arguments = $"\"{_tableName}\" \"0\"";
+            
+            Logger.Log($"Starting process: {fullExePath}");
+            Logger.Log($"Arguments: {arguments}");
+            
+            try
+            {
+                _process = new Process();
+                _process.StartInfo.FileName = fullExePath;
+                _process.StartInfo.Arguments = arguments;
+                _process.StartInfo.UseShellExecute = true;
+                _process.StartInfo.WorkingDirectory = Directory.GetCurrentDirectory();
+                
+                bool started = _process.Start();
+                Logger.Log($"Process.Start() returned: {started}");
+                Logger.Log($"Process ID: {_process.Id}");
+                Logger.Log("=== StartBackglassEXE() END ===");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogException(ex, "Process.Start()");
+                throw;
+            }
         }
 
         private static string ReadRegistrySetting(string keyPath, string valueName, string defaultValue)
@@ -207,6 +304,7 @@ namespace B2S.ComServer
             get => InvokeVPMProperty<string>("GameName") ?? string.Empty;
             set
             {
+                Logger.Log($"GameName SET: '{value}' (was: '{_gameName}')");
                 InvokeVPMProperty("GameName", value);
                 _gameName = value;
                 _b2sName = string.Empty;
@@ -220,6 +318,7 @@ namespace B2S.ComServer
             get => _b2sName;
             set
             {
+                Logger.Log($"B2SName SET: '{value}' (was: '{_b2sName}')");
                 _b2sName = value.Replace(" ", "");
                 _gameName = string.Empty;
             }
@@ -228,20 +327,47 @@ namespace B2S.ComServer
         public string TableName
         {
             get => _tableName;
-            set => _tableName = value;
+            set
+            {
+                Logger.Log($"TableName SET: '{value}' (was: '{_tableName}')");
+                _tableName = value;
+                // Backglass EXE is started in Run() - no auto-start here
+                // For EM tables: script calls Run() explicitly
+                // For ROM tables: VPinMAME integration handles it
+            }
         }
 
         public string WorkingDir
         {
             set
             {
-                Directory.SetCurrentDirectory(value);
+                Logger.Log($"WorkingDir SET: '{value}'");
+                try
+                {
+                    Directory.SetCurrentDirectory(value);
+                    Logger.Log($"Current directory now: {Directory.GetCurrentDirectory()}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogException(ex, "Setting WorkingDir");
+                    throw;
+                }
             }
         }
 
         public void SetPath(string path)
         {
-            Directory.SetCurrentDirectory(path);
+            Logger.Log($"SetPath called: '{path}'");
+            try
+            {
+                Directory.SetCurrentDirectory(path);
+                Logger.Log($"Current directory now: {Directory.GetCurrentDirectory()}");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogException(ex, "SetPath");
+                throw;
+            }
         }
 
         public object Games(string gamename)
@@ -280,62 +406,104 @@ namespace B2S.ComServer
 
         public void Run(object handle = null!)
         {
-            int handleValue = handle != null ? Convert.ToInt32(handle) : 0;
-            _tableHandle = new IntPtr(handleValue);
+            Logger.LogSeparator("RUN CALLED");
+            Logger.Log($"Run() called with handle: {handle}");
+            Logger.Log($"Current state: TableName='{_tableName}', GameName='{_gameName}', B2SName='{_b2sName}'");
+            Logger.Log($"LaunchBackglass={_launchBackglass}, CurrentDir='{Directory.GetCurrentDirectory()}'");
             
-            if (_pluginHost != null)
+            try
             {
-                string tableFile = Path.Combine(Directory.GetCurrentDirectory(), $"{_tableName}.vpt");
-                string romName = !string.IsNullOrEmpty(B2SName) ? B2SName : GameName;
-                _pluginHost.PluginInit(tableFile, romName);
+                int handleValue = handle != null ? Convert.ToInt32(handle) : 0;
+                _tableHandle = new IntPtr(handleValue);
+                Logger.Log($"Table handle: {_tableHandle}");
+                
+                if (_pluginHost != null)
+                {
+                    string tableFile = Path.Combine(Directory.GetCurrentDirectory(), $"{_tableName}.vpt");
+                    string romName = !string.IsNullOrEmpty(B2SName) ? B2SName : GameName;
+                    Logger.Log($"Initializing plugins: tableFile='{tableFile}', romName='{romName}'");
+                    _pluginHost.PluginInit(tableFile, romName);
+                }
+                
+                if (_launchBackglass)
+                {
+                    Logger.Log("About to launch backglass EXE...");
+                    StartBackglassEXE();
+                    Logger.Log("StartBackglassEXE() completed");
+                }
+                else
+                {
+                    Logger.Log("LaunchBackglass is FALSE - skipping backglass EXE");
+                }
+                
+                Logger.Log("Calling VPinMAME.Run()...");
+                InvokeVPMMethod("Run", handleValue);
+                Logger.Log("VPinMAME.Run() completed");
+                
+                if (_pluginHost != null)
+                {
+                    _pluginHost.PinMameRun();
+                    Logger.Log("Plugin PinMameRun() called");
+                }
+                
+                _timer?.Start();
+                Logger.Log("Timer started. Run() completed successfully.");
             }
-            
-            if (_launchBackglass)
+            catch (Exception ex)
             {
-                StartBackglassEXE();
+                Logger.LogException(ex, "Run()");
+                throw;
             }
-            
-            InvokeVPMMethod("Run", handleValue);
-            
-            if (_pluginHost != null)
-            {
-                _pluginHost.PinMameRun();
-            }
-            
-            _timer?.Start();
         }
 
         public void Stop()
         {
+            Logger.LogSeparator("STOP CALLED");
+            Logger.Log("Stop() called");
+            
             try
             {
                 _timer?.Stop();
+                Logger.Log("Timer stopped");
                 
-                if (_process != null && !_process.HasExited)
+                if (_process != null)
                 {
-                    _process.Kill();
+                    Logger.Log($"Process state: HasExited={_process.HasExited}");
+                    if (!_process.HasExited)
+                    {
+                        _process.Kill();
+                        Logger.Log("Process killed");
+                    }
                     _process.Dispose();
                     _process = null;
                 }
                 
+                Logger.Log("Calling VPinMAME.Stop()...");
                 InvokeVPMMethod("Stop");
                 
                 if (_pluginHost != null)
                 {
                     _pluginHost.PinMameStop();
                     _pluginHost.PluginFinish();
+                    Logger.Log("Plugins stopped");
                 }
+                
+                Logger.Log("Stop() completed");
             }
-            catch
+            catch (Exception ex)
             {
-                // Silently handle errors during shutdown
+                Logger.LogException(ex, "Stop()");
             }
         }
 
         public bool LaunchBackglass
         {
             get => _launchBackglass;
-            set => _launchBackglass = value;
+            set
+            {
+                Logger.Log($"LaunchBackglass SET: {value} (was: {_launchBackglass})");
+                _launchBackglass = value;
+            }
         }
 
         public string SplashInfoLine
@@ -555,6 +723,15 @@ namespace B2S.ComServer
 
         public void B2SSetData(object idORname, object value)
         {
+            // Only log first few calls to avoid spam
+            if (_b2sSetDataCallCount < 10)
+            {
+                Logger.Log($"B2SSetData({idORname}, {value})");
+                _b2sSetDataCallCount++;
+                if (_b2sSetDataCallCount == 10)
+                    Logger.Log("(Suppressing further B2SSetData logs...)");
+            }
+            
             if (int.TryParse(idORname.ToString(), out int id))
             {
                 RegistryHelper.SetDataValue(id, Convert.ToInt32(value));
@@ -858,21 +1035,37 @@ namespace B2S.ComServer
 
         public void Dispose()
         {
+            Logger.Log($"Dispose() called, _disposed={_disposed}");
+            
             if (!_disposed)
             {
-                _timer?.Stop();
-                _timer?.Dispose();
-                _process?.Dispose();
-                _pluginHost?.Dispose();
-                
-                if (_vpinmame != null && Marshal.IsComObject(_vpinmame))
+                try
                 {
-                    Marshal.ReleaseComObject(_vpinmame);
-                    _vpinmame = null;
+                    _timer?.Stop();
+                    _timer?.Dispose();
+                    Logger.Log("Timer disposed");
+                    
+                    _process?.Dispose();
+                    Logger.Log("Process disposed");
+                    
+                    _pluginHost?.Dispose();
+                    Logger.Log("PluginHost disposed");
+                    
+                    if (_vpinmame != null && Marshal.IsComObject(_vpinmame))
+                    {
+                        Marshal.ReleaseComObject(_vpinmame);
+                        _vpinmame = null;
+                        Logger.Log("VPinMAME COM object released");
+                    }
+                    
+                    _disposed = true;
+                    GC.SuppressFinalize(this);
+                    Logger.Log("Dispose() completed");
                 }
-                
-                _disposed = true;
-                GC.SuppressFinalize(this);
+                catch (Exception ex)
+                {
+                    Logger.LogException(ex, "Dispose()");
+                }
             }
         }
 

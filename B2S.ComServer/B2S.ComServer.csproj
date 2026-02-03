@@ -50,6 +50,7 @@
   <ItemGroup>
     <Compile Include="B2SVersionInfo.cs" />
     <Compile Include="IB2SServer.cs" />
+    <Compile Include="Logger.cs" />
     <Compile Include="PluginHost.cs" />
     <Compile Include="RegistryHelper.cs" />
     <Compile Include="Server.cs" />

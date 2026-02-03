@@ -59,7 +59,7 @@ namespace B2S.ComServer
         double PMBuildVersion { get; }
         
         [DispId(23)]
-        void Run(object handle);
+        void Run([Optional] object handle);
         
         [DispId(24)]
         void Stop();

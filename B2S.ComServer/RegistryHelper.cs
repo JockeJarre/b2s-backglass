@@ -11,14 +11,26 @@ namespace B2S.ComServer
 
         public static void InitializeRegistry()
         {
-            using (var key = Registry.CurrentUser.CreateSubKey(B2S_REGISTRY_KEY))
-            {
-                // Clear startup values
-                key.DeleteValue("B2SGameName", false);
-                key.DeleteValue("B2SB2SName", false);
-            }
+            Logger.Log($"InitializeRegistry() - Creating {B2S_REGISTRY_KEY}");
             
-            Registry.CurrentUser.CreateSubKey(VPINMAME_REGISTRY_KEY);
+            try
+            {
+                using (var key = Registry.CurrentUser.CreateSubKey(B2S_REGISTRY_KEY))
+                {
+                    // Clear startup values
+                    key.DeleteValue("B2SGameName", false);
+                    key.DeleteValue("B2SB2SName", false);
+                    Logger.Log("Cleared B2SGameName and B2SB2SName");
+                }
+                
+                Registry.CurrentUser.CreateSubKey(VPINMAME_REGISTRY_KEY);
+                Logger.Log($"Created {VPINMAME_REGISTRY_KEY}");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogException(ex, "InitializeRegistry");
+                throw;
+            }
         }
 
         public static void SetValue(string valueName, object value)
