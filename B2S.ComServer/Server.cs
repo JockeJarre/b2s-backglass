@@ -686,6 +686,19 @@ namespace B2S.ComServer
         public object get_GetMech(object number)
         {
             object? result = InvokeVPMIndexedProperty<object>("GetMech", number);
+            
+            // Write mech values to registry for EXE mode (like VB version does)
+            if (IsNumeric(number) && IsNumeric(result))
+            {
+                int mechId = Convert.ToInt32(number);
+                int mechValue = Convert.ToInt32(result);
+                
+                if (mechId >= 1 && mechId <= 5)
+                {
+                    RegistryHelper.SetValue($"B2SMechs{mechId}", mechValue);
+                }
+            }
+            
             if (_pluginHost != null && IsNumeric(number) && IsNumeric(result))
             {
                 _pluginHost.DataReceive('N', Convert.ToInt32(number), Convert.ToInt32(result));
@@ -707,13 +720,91 @@ namespace B2S.ComServer
             }
         }
 
-        // DMD Properties
+        // DMD Properties - return raw VPinMAME results directly like VB version
         public int RawDmdWidth => InvokeVPMProperty<int>("RawDmdWidth");
         public int RawDmdHeight => InvokeVPMProperty<int>("RawDmdHeight");
-        public object RawDmdPixels => InvokeVPMProperty<object>("RawDmdPixels") ?? Array.Empty<object>();
-        public object RawDmdColoredPixels => InvokeVPMProperty<object>("RawDmdColoredPixels") ?? Array.Empty<object>();
-        public object ChangedNVRAM => InvokeVPMProperty<object>("ChangedNVRAM") ?? Array.Empty<object>();
-        public object NVRAM => InvokeVPMProperty<object>("NVRAM") ?? Array.Empty<object>();
+        
+        public object RawDmdPixels
+        {
+            get
+            {
+                try
+                {
+                    // VB version: Return VPinMAME.RawDmdPixels
+                    return VPinMAME.GetType().InvokeMember(
+                        "RawDmdPixels",
+                        System.Reflection.BindingFlags.GetProperty,
+                        null,
+                        VPinMAME,
+                        null)!;
+                }
+                catch
+                {
+                    return null!;
+                }
+            }
+        }
+        
+        public object RawDmdColoredPixels
+        {
+            get
+            {
+                try
+                {
+                    // VB version: Return VPinMAME.RawDmdColoredPixels
+                    return VPinMAME.GetType().InvokeMember(
+                        "RawDmdColoredPixels",
+                        System.Reflection.BindingFlags.GetProperty,
+                        null,
+                        VPinMAME,
+                        null)!;
+                }
+                catch
+                {
+                    return null!;
+                }
+            }
+        }
+        
+        public object ChangedNVRAM
+        {
+            get
+            {
+                try
+                {
+                    return VPinMAME.GetType().InvokeMember(
+                        "ChangedNVRAM",
+                        System.Reflection.BindingFlags.GetProperty,
+                        null,
+                        VPinMAME,
+                        null)!;
+                }
+                catch
+                {
+                    return null!;
+                }
+            }
+        }
+        
+        public object NVRAM
+        {
+            get
+            {
+                try
+                {
+                    return VPinMAME.GetType().InvokeMember(
+                        "NVRAM",
+                        System.Reflection.BindingFlags.GetProperty,
+                        null,
+                        VPinMAME,
+                        null)!;
+                }
+                catch
+                {
+                    return null!;
+                }
+            }
+        }
         
         public int SoundMode
         {
@@ -849,7 +940,17 @@ namespace B2S.ComServer
 
         public object ChangedLEDs(object mask2, object mask1, object mask3 = null!, object mask4 = null!)
         {
-            object? result = InvokeVPMMethod("ChangedLEDs", mask2, mask1, mask3 ?? 0, mask4 ?? 0);
+            // ChangedLEDs is an indexed property in VPinMAME, not a method
+            // VB syntax: VPinMAME.ChangedLEDs(mask2, mask1, mask3, mask4)
+            try
+            {
+                object? result = VPinMAME.GetType().InvokeMember(
+                    "ChangedLEDs",
+                    System.Reflection.BindingFlags.GetProperty,
+                    null,
+                    VPinMAME,
+                    new object[] { mask2, mask1, mask3 ?? 0, mask4 ?? 0 });
+                    
             if (result != null && result is object[,] array)
             {
                 ProcessLEDs(array);
@@ -858,7 +959,14 @@ namespace B2S.ComServer
                     _pluginHost.DataReceive('D', result);
                 }
             }
-            return result ?? new object[,] { };
+                return result ?? EmptyChangedArray;
+            }
+            catch (Exception ex)
+            {
+                var inner = ex.InnerException ?? ex;
+                Logger.Log($"ChangedLEDs FAILED: {inner.Message}");
+                return EmptyChangedArray;
+            }
         }
 
         public object NewSoundCommands => InvokeVPMProperty<object>("NewSoundCommands") ?? new object[,] { };
@@ -899,7 +1007,27 @@ namespace B2S.ComServer
 
         private void ProcessLEDs(object[,] leds)
         {
-            // LEDs are processed but detailed logic would go here if needed
+            // Write LED data to registry for the backglass EXE to read
+            // VB version: digit = leds(i, 0), value = leds(i, 2), writes to B2SLED{digit+1}
+            try
+            {
+                using (var regkey = Registry.CurrentUser.OpenSubKey("Software\\B2S", true))
+                {
+                    if (regkey != null)
+                    {
+                        for (int i = 0; i <= leds.GetUpperBound(0); i++)
+                        {
+                            int digit = Convert.ToInt32(leds[i, 0]);
+                            int value = Convert.ToInt32(leds[i, 2]); // Column 2 contains the value
+                            regkey.SetValue($"B2SLED{digit + 1}", value);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Silently handle registry errors
+            }
         }
 
         #endregion
@@ -1248,7 +1376,7 @@ namespace B2S.ComServer
 
         public void B2SStartSound(string soundname)
         {
-            // Sound handling
+            RegistryHelper.SetSound(soundname, 1);
         }
 
         public void B2SPlaySound(string soundname)
@@ -1258,12 +1386,12 @@ namespace B2S.ComServer
 
         public void B2SStopSound(string soundname)
         {
-            // Sound handling
+            RegistryHelper.SetSound(soundname, 0);
         }
 
         public void B2SMapSound(object digit, string soundname)
         {
-            // Sound mapping
+            // Sound mapping - not needed for EXE mode
         }
 
         #endregion

@@ -157,6 +157,35 @@ namespace B2S.ComServer
             }
         }
 
+        public static void SetSound(string soundName, int state)
+        {
+            using (var key = Registry.CurrentUser.OpenSubKey(B2S_REGISTRY_KEY, true))
+            {
+                if (key == null) return;
+                
+                var currentSounds = (GetValue("B2SSounds", string.Empty)?.ToString() ?? string.Empty).Split('\x01');
+                bool found = false;
+                
+                for (int i = 0; i < currentSounds.Length; i++)
+                {
+                    if (currentSounds[i].StartsWith(soundName + "="))
+                    {
+                        currentSounds[i] = $"{soundName}={state}";
+                        found = true;
+                        break;
+                    }
+                }
+                
+                if (!found)
+                {
+                    Array.Resize(ref currentSounds, currentSounds.Length + 1);
+                    currentSounds[currentSounds.Length - 1] = $"{soundName}={state}";
+                }
+                
+                key.SetValue("B2SSounds", string.Join("\x01", currentSounds));
+            }
+        }
+
         public static void CleanupBackglassRegistry()
         {
             using (var key = Registry.CurrentUser.OpenSubKey(B2S_REGISTRY_KEY, true))
