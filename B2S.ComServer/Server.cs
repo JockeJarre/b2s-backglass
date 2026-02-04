@@ -686,6 +686,19 @@ namespace B2S.ComServer
         public object get_GetMech(object number)
         {
             object? result = InvokeVPMIndexedProperty<object>("GetMech", number);
+            
+            // Write mech values to registry for EXE mode (like VB version does)
+            if (IsNumeric(number) && IsNumeric(result))
+            {
+                int mechId = Convert.ToInt32(number);
+                int mechValue = Convert.ToInt32(result);
+                
+                if (mechId >= 1 && mechId <= 5)
+                {
+                    RegistryHelper.SetValue($"B2SMechs{mechId}", mechValue);
+                }
+            }
+            
             if (_pluginHost != null && IsNumeric(number) && IsNumeric(result))
             {
                 _pluginHost.DataReceive('N', Convert.ToInt32(number), Convert.ToInt32(result));
