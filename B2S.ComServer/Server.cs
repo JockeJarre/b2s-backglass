@@ -1,7 +1,9 @@
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Timers;
@@ -11,10 +13,9 @@ namespace B2S.ComServer
 {
     [ComVisible(true)]
     [Guid("09e233a3-cc79-457a-b49e-f637588891e5")]
-    [ClassInterface(ClassInterfaceType.None)]
+    [ClassInterface(ClassInterfaceType.AutoDispatch)]
     [ProgId("B2S.Server")]
-    [ComDefaultInterface(typeof(IB2SServer))]
-    public class Server : IB2SServer, IDisposable
+    public class Server : IB2SServer, IReflect, IDisposable
     {
         private const string EXE_NAME = "B2SBackglassServerEXE.exe";
         
@@ -372,7 +373,20 @@ namespace B2S.ComServer
 
         public object Games(string gamename)
         {
-            return InvokeVPMMethod("Games", gamename) ?? new object();
+            try
+            {
+                var vpm = VPinMAME;
+                return vpm.GetType().InvokeMember(
+                    "Games",
+                    System.Reflection.BindingFlags.GetProperty,
+                    null,
+                    vpm,
+                    new object[] { gamename }) ?? new object();
+            }
+            catch
+            {
+                return new object();
+            }
         }
 
         public object Settings => InvokeVPMProperty<object>("Settings") ?? new object();
@@ -413,7 +427,7 @@ namespace B2S.ComServer
             
             try
             {
-                int handleValue = handle != null ? Convert.ToInt32(handle) : 0;
+                int handleValue = (handle != null && handle != Type.Missing && !(handle is System.Reflection.Missing)) ? Convert.ToInt32(handle) : 0;
                 _tableHandle = new IntPtr(handleValue);
                 Logger.Log($"Table handle: {_tableHandle}");
                 
@@ -611,37 +625,203 @@ namespace B2S.ComServer
             set => InvokeVPMProperty("HandleMechanics", value);
         }
 
+        // Indexed properties thresholds
+        private int _lampThreshold = 0;
+        private int _giStringThreshold = 4;
+
+        // Accessor objects for indexed properties
+        private SwitchAccessor? _switchAccessor;
+        private LampAccessor? _lampAccessor;
+        private SolenoidAccessor? _solenoidAccessor;
+        private GIStringAccessor? _giStringAccessor;
+        private MechAccessor? _mechAccessor;
+        private GetMechAccessor? _getMechAccessor;
+        private DipAccessor? _dipAccessor;
+        private SolMaskAccessor? _solMaskAccessor;
+
+        // Properties that return accessor objects - VBScript calls Controller.Switch(32)
+        public SwitchAccessor Switch => _switchAccessor ??= new SwitchAccessor(this);
+        public LampAccessor Lamp => _lampAccessor ??= new LampAccessor(this);
+        public SolenoidAccessor Solenoid => _solenoidAccessor ??= new SolenoidAccessor(this);
+        public GIStringAccessor GIString => _giStringAccessor ??= new GIStringAccessor(this);
+        public MechAccessor Mech => _mechAccessor ??= new MechAccessor(this);
+        public GetMechAccessor GetMech => _getMechAccessor ??= new GetMechAccessor(this);
+        public DipAccessor Dip => _dipAccessor ??= new DipAccessor(this);
+        public SolMaskAccessor SolMask => _solMaskAccessor ??= new SolMaskAccessor(this);
+
+        // Indexed property implementations - interface methods
+        public bool get_Switch(object number) => InvokeVPMIndexedProperty<bool>("Switch", number);
+        public void set_Switch(object number, bool value)
+        {
+            SetVPMIndexedProperty("Switch", number, value);
+            if (_pluginHost != null && IsNumeric(number))
+            {
+                _pluginHost.DataReceive('W', Convert.ToInt32(number), value ? 1 : 0);
+            }
+        }
+
+        public bool get_Lamp(object number) => InvokeVPMIndexedProperty<bool>("Lamp", number);
+        public bool get_Solenoid(object number) => InvokeVPMIndexedProperty<bool>("Solenoid", number);
+        public bool get_GIString(object number) => InvokeVPMIndexedProperty<bool>("GIString", number);
+        
+        public int get_Mech(object number)
+        {
+            int value = InvokeVPMIndexedProperty<int>("Mech", number);
+            if (_pluginHost != null && IsNumeric(number))
+            {
+                _pluginHost.DataReceive('M', Convert.ToInt32(number), value);
+            }
+            return value;
+        }
+        
+        public void set_Mech(object number, int value)
+        {
+            SetVPMIndexedProperty("Mech", number, value);
+            if (_pluginHost != null && IsNumeric(number))
+            {
+                _pluginHost.DataReceive('M', Convert.ToInt32(number), value);
+            }
+        }
+
+        public object get_GetMech(object number)
+        {
+            object? result = InvokeVPMIndexedProperty<object>("GetMech", number);
+            if (_pluginHost != null && IsNumeric(number) && IsNumeric(result))
+            {
+                _pluginHost.DataReceive('N', Convert.ToInt32(number), Convert.ToInt32(result));
+            }
+            return result ?? 0;
+        }
+
+        public int get_Dip(object number) => InvokeVPMIndexedProperty<int>("Dip", number);
+        public void set_Dip(object number, int value) => SetVPMIndexedProperty("Dip", number, value);
+
+        public int get_SolMask(object number) => InvokeVPMIndexedProperty<int>("SolMask", number);
+        public void set_SolMask(object number, int value)
+        {
+            SetVPMIndexedProperty("SolMask", number, value);
+            if (Convert.ToInt32(number) == 2)
+            {
+                _lampThreshold = value == 2 ? 64 : 0;
+                _giStringThreshold = value == 2 ? 64 : 4;
+            }
+        }
+
+        // DMD Properties
+        public int RawDmdWidth => InvokeVPMProperty<int>("RawDmdWidth");
+        public int RawDmdHeight => InvokeVPMProperty<int>("RawDmdHeight");
+        public object RawDmdPixels => InvokeVPMProperty<object>("RawDmdPixels") ?? Array.Empty<object>();
+        public object RawDmdColoredPixels => InvokeVPMProperty<object>("RawDmdColoredPixels") ?? Array.Empty<object>();
+        public object ChangedNVRAM => InvokeVPMProperty<object>("ChangedNVRAM") ?? Array.Empty<object>();
+        public object NVRAM => InvokeVPMProperty<object>("NVRAM") ?? Array.Empty<object>();
+        
+        public int SoundMode
+        {
+            get => InvokeVPMProperty<int>("SoundMode");
+            set => InvokeVPMProperty("SoundMode", value);
+        }
+
+        private bool IsNumeric(object? value)
+        {
+            if (value == null) return false;
+            return value is sbyte || value is byte || value is short || value is ushort ||
+                   value is int || value is uint || value is long || value is ulong ||
+                   value is float || value is double || value is decimal;
+        }
+
+        private T InvokeVPMIndexedProperty<T>(string propertyName, object index)
+        {
+            try
+            {
+                var vpm = VPinMAME;
+                object? result = vpm.GetType().InvokeMember(
+                    propertyName,
+                    System.Reflection.BindingFlags.GetProperty,
+                    null,
+                    vpm,
+                    new object[] { index });
+                return result != null ? (T)Convert.ChangeType(result, typeof(T)) : default!;
+            }
+            catch
+            {
+                return default!;
+            }
+        }
+
+        private void SetVPMIndexedProperty(string propertyName, object index, object value)
+        {
+            try
+            {
+                var vpm = VPinMAME;
+                vpm.GetType().InvokeMember(
+                    propertyName,
+                    System.Reflection.BindingFlags.SetProperty,
+                    null,
+                    vpm,
+                    new object[] { index, value });
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"SetVPMIndexedProperty({propertyName}, {index}, {value}) FAILED: {ex.Message}");
+            }
+        }
+
+        // Empty 2D array to return when VPinMAME returns null
+        // This matches what VPinMAME returns when there are no changes (an empty SAFEARRAY)
+        private static readonly object[,] EmptyChangedArray = new object[0, 2];
+        
         public object ChangedLamps
         {
             get
             {
+                // ChangedLamps is a property in VPinMAME (VB syntax uses () for property getters too)
                 object? result = InvokeVPMProperty<object>("ChangedLamps");
+                
+                // Debug: log first few returns
+                if (_changedLampsCallCount < 5)
+                {
+                    _changedLampsCallCount++;
+                    string resultInfo = result == null ? "null" : (result is object[,] arr ? $"object[,] with {arr.GetLength(0)} rows" : result.GetType().Name);
+                    Logger.Log($"ChangedLamps returned: {resultInfo}");
+                }
+                
                 if (result != null && result is object[,] array)
                 {
-                    ProcessLamps(array);
+                    if (array.GetLength(0) > 0)
+                    {
+                        ProcessLamps(array);
+                    }
                     if (_pluginHost != null)
                     {
                         _pluginHost.DataReceive('L', result);
                     }
+                    return result;
                 }
-                return result ?? new object[,] { };
+                // Return empty array when VPinMAME returns null
+                return EmptyChangedArray;
             }
         }
+        private int _changedLampsCallCount = 0;
 
         public object ChangedSolenoids
         {
             get
             {
+                // ChangedSolenoids is a property in VPinMAME
                 object? result = InvokeVPMProperty<object>("ChangedSolenoids");
                 if (result != null && result is object[,] array)
                 {
-                    ProcessSolenoids(array);
+                    if (array.GetLength(0) > 0)
+                    {
+                        ProcessSolenoids(array);
+                    }
                     if (_pluginHost != null)
                     {
                         _pluginHost.DataReceive('S', result);
                     }
+                    return result;
                 }
-                return result ?? new object[,] { };
+                return EmptyChangedArray;
             }
         }
 
@@ -649,16 +829,21 @@ namespace B2S.ComServer
         {
             get
             {
+                // ChangedGIStrings is a property in VPinMAME
                 object? result = InvokeVPMProperty<object>("ChangedGIStrings");
                 if (result != null && result is object[,] array)
                 {
-                    ProcessGIStrings(array);
+                    if (array.GetLength(0) > 0)
+                    {
+                        ProcessGIStrings(array);
+                    }
                     if (_pluginHost != null)
                     {
                         _pluginHost.DataReceive('G', result);
                     }
+                    return result;
                 }
-                return result ?? new object[,] { };
+                return EmptyChangedArray;
             }
         }
 
@@ -814,9 +999,95 @@ namespace B2S.ComServer
 
         public void B2SSetScorePlayer(object playerno, object score)
         {
+            int playerNum = Convert.ToInt32(playerno);
+            int scoreValue = Convert.ToInt32(score);
+            
+            if (playerNum > 0)
+            {
+                // In EXE mode, we need to write score digits to the registry
+                // The backglass EXE reads B2SScorePlayer{n} to know the digit layout
+                // and reads B2SLED{digit} for each digit value
+                try
+                {
+                    using (var regkey = Registry.CurrentUser.OpenSubKey("Software\\B2S", true))
+                    {
+                        if (regkey != null)
+                        {
+                            string? scoreInfo = regkey.GetValue($"B2SScorePlayer{playerNum}", string.Empty)?.ToString();
+                            if (!string.IsNullOrEmpty(scoreInfo))
+                            {
+                                // Parse score info: format is "reeltype,ledtype,startdigit,digits;..."
+                                var infos = scoreInfo.Split(';');
+                                int totalDigits = 0;
+                                var digitConfigs = new System.Collections.Generic.List<(int reeltype, int ledtype, int startdigit, int digits)>();
+                                
+                                foreach (var info in infos)
+                                {
+                                    var parts = info.Split(',');
+                                    if (parts.Length == 4)
+                                    {
+                                        int reeltype = int.Parse(parts[0]);
+                                        int ledtype = int.Parse(parts[1]);
+                                        int startdigit = int.Parse(parts[2]);
+                                        int digits = int.Parse(parts[3]);
+                                        totalDigits += digits;
+                                        digitConfigs.Add((reeltype, ledtype, startdigit, digits));
+                                    }
+                                }
+                                
+                                if (totalDigits > 0)
+                                {
+                                    // Format score as string with leading zeros
+                                    string scoreStr = scoreValue.ToString().PadLeft(totalDigits, '0');
+                                    if (scoreStr.Length > totalDigits)
+                                        scoreStr = scoreStr.Substring(scoreStr.Length - totalDigits);
+                                    
+                                    int charIndex = 0;
+                                    foreach (var config in digitConfigs)
+                                    {
+                                        for (int i = 0; i < config.digits && charIndex < scoreStr.Length; i++)
+                                        {
+                                            int digit = config.startdigit + i;
+                                            int digitValue = ConvertCharToLEDValue(scoreStr[charIndex], config.ledtype);
+                                            regkey.SetValue($"B2SLED{digit}", digitValue);
+                                            charIndex++;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"B2SSetScorePlayer error: {ex.Message}");
+                }
+            }
+            
             if (_pluginHost != null)
             {
-                _pluginHost.DataReceive('C', Convert.ToInt32(playerno), Convert.ToInt32(score));
+                _pluginHost.DataReceive('C', playerNum, scoreValue);
+            }
+        }
+        
+        private int ConvertCharToLEDValue(char c, int ledType)
+        {
+            // Convert character to 7-segment LED value
+            // LED type 0 = standard 7-segment
+            switch (c)
+            {
+                case '0': return 63;  // 0111111
+                case '1': return 6;   // 0000110
+                case '2': return 91;  // 1011011
+                case '3': return 79;  // 1001111
+                case '4': return 102; // 1100110
+                case '5': return 109; // 1101101
+                case '6': return 125; // 1111101
+                case '7': return 7;   // 0000111
+                case '8': return 127; // 1111111
+                case '9': return 111; // 1101111
+                case ' ': return 0;   // blank
+                default: return 0;
             }
         }
 
@@ -829,7 +1100,28 @@ namespace B2S.ComServer
 
         public void B2SSetScoreDigit(object digit, object value)
         {
-            // Score digit handling
+            // Write LED value directly to registry for EXE mode
+            int digitNum = Convert.ToInt32(digit);
+            int digitValue = Convert.ToInt32(value);
+            
+            if (digitNum > 0)
+            {
+                try
+                {
+                    using (var regkey = Registry.CurrentUser.OpenSubKey("Software\\B2S", true))
+                    {
+                        regkey?.SetValue($"B2SLED{digitNum}", digitValue);
+                    }
+                }
+                catch
+                {
+                }
+            }
+            
+            if (_pluginHost != null)
+            {
+                _pluginHost.DataReceive('B', digitNum, digitValue);
+            }
         }
 
         public void B2SSetScoreRollover(object id, object value) => B2SSetData(id, value);
@@ -977,23 +1269,53 @@ namespace B2S.ComServer
         #endregion
 
         #region Helper Methods
+        
+        // =====================================================================================
+        // VPinMAME COM Object Method/Property Treatment Documentation
+        // =====================================================================================
+        // 
+        // VPinMAME exposes its interface via COM IDispatch. When calling from C#, we must use
+        // the correct BindingFlags for each member type:
+        //
+        // PROPERTIES (use InvokeVPMProperty with BindingFlags.GetProperty/SetProperty):
+        // - GameName, ROMName, TableName, Version
+        // - HandleKeyboard, HandleMechanics, ShowTitle, ShowFrame, ShowDMDOnly, Hidden, Pause
+        // - SplashInfoLine, ShowPinDMD, LockDisplay, DoubleSize, SoundMode
+        // - ChangedLamps, ChangedSolenoids, ChangedGIStrings (read-only, return SAFEARRAY)
+        // - RawDmdWidth, RawDmdHeight, RawDmdPixels, RawDmdColoredPixels
+        // - ChangedNVRAM, NVRAM, Games
+        //
+        // INDEXED PROPERTIES (use InvokeVPMIndexedProperty/SetVPMIndexedProperty):
+        // - Switch(n), Lamp(n), Solenoid(n), GIString(n), Mech(n), Dip(n), SolMask(n)
+        //
+        // METHODS (use InvokeVPMMethod with BindingFlags.InvokeMethod):
+        // - Run(handle), Stop(), Pause
+        // - ChangedLEDs(mask2, mask1, mask3, mask4) - this one IS a method, takes parameters
+        //
+        // IMPORTANT: VB syntax allows calling properties with () like methods (e.g., ChangedLamps())
+        // but they are still properties and must be accessed with GetProperty binding flag.
+        // Using InvokeMethod on a property will cause DISP_E_MEMBERNOTFOUND error.
+        // =====================================================================================
 
         private T? InvokeVPMProperty<T>(string propertyName)
         {
             try
             {
-                var prop = VPinMAME.GetType().GetProperty(propertyName);
-                if (prop != null)
-                {
-                    object? result = prop.GetValue(VPinMAME);
-                    if (result is T typedResult)
-                        return typedResult;
-                    if (result != null && typeof(T).IsAssignableFrom(result.GetType()))
-                        return (T)result;
-                }
+                object? result = VPinMAME.GetType().InvokeMember(
+                    propertyName,
+                    System.Reflection.BindingFlags.GetProperty,
+                    null,
+                    VPinMAME,
+                    null);
+                if (result is T typedResult)
+                    return typedResult;
+                if (result != null)
+                    return (T)Convert.ChangeType(result, typeof(T));
             }
-            catch
+            catch (Exception ex)
             {
+                var inner = ex.InnerException ?? ex;
+                Logger.Log($"InvokeVPMProperty GET {propertyName} FAILED: {inner.Message}");
             }
             return default;
         }
@@ -1002,11 +1324,16 @@ namespace B2S.ComServer
         {
             try
             {
-                var prop = VPinMAME.GetType().GetProperty(propertyName);
-                prop?.SetValue(VPinMAME, value);
+                VPinMAME.GetType().InvokeMember(
+                    propertyName,
+                    System.Reflection.BindingFlags.SetProperty,
+                    null,
+                    VPinMAME,
+                    new object[] { value });
             }
-            catch
+            catch (Exception ex)
             {
+                Logger.Log($"InvokeVPMProperty SET {propertyName} FAILED: {ex.Message}");
             }
         }
 
@@ -1021,8 +1348,11 @@ namespace B2S.ComServer
                     VPinMAME,
                     parameters);
             }
-            catch
+            catch (Exception ex)
             {
+                // Get inner exception for more details
+                var innerEx = ex.InnerException ?? ex;
+                Logger.Log($"InvokeVPMMethod({methodName}) FAILED: {innerEx.Message}");
                 return null;
             }
         }
@@ -1075,5 +1405,230 @@ namespace B2S.ComServer
         }
 
         #endregion
+
+        #region IReflect Implementation
+
+        private static readonly string[] IndexedPropertyNames = { "Switch", "Lamp", "Solenoid", "GIString", "Mech", "GetMech", "Dip", "SolMask" };
+
+        Type IReflect.UnderlyingSystemType => typeof(Server);
+
+        FieldInfo? IReflect.GetField(string name, BindingFlags bindingAttr) => GetType().GetField(name, bindingAttr);
+        FieldInfo[] IReflect.GetFields(BindingFlags bindingAttr) => GetType().GetFields(bindingAttr);
+        MemberInfo[] IReflect.GetMember(string name, BindingFlags bindingAttr) => GetType().GetMember(name, bindingAttr);
+        MemberInfo[] IReflect.GetMembers(BindingFlags bindingAttr) => GetType().GetMembers(bindingAttr);
+        MethodInfo? IReflect.GetMethod(string name, BindingFlags bindingAttr) => GetType().GetMethod(name, bindingAttr);
+        MethodInfo? IReflect.GetMethod(string name, BindingFlags bindingAttr, Binder? binder, Type[] types, ParameterModifier[]? modifiers) 
+            => GetType().GetMethod(name, bindingAttr, binder, types, modifiers);
+        MethodInfo[] IReflect.GetMethods(BindingFlags bindingAttr) => GetType().GetMethods(bindingAttr);
+        PropertyInfo[] IReflect.GetProperties(BindingFlags bindingAttr) => GetType().GetProperties(bindingAttr);
+        PropertyInfo? IReflect.GetProperty(string name, BindingFlags bindingAttr) => GetType().GetProperty(name, bindingAttr);
+        PropertyInfo? IReflect.GetProperty(string name, BindingFlags bindingAttr, Binder? binder, Type? returnType, Type[] types, ParameterModifier[]? modifiers) 
+            => GetType().GetProperty(name, bindingAttr, binder, returnType, types, modifiers);
+
+        object? IReflect.InvokeMember(string name, BindingFlags invokeAttr, Binder? binder, object? target, object?[]? args, ParameterModifier[]? modifiers, CultureInfo? culture, string[]? namedParameters)
+        {
+            // Skip logging for high-frequency polling methods to avoid slowdown
+            bool isPollingMethod = name == "ChangedLamps" || name == "ChangedSolenoids" || name == "ChangedGIStrings" || 
+                                   name == "RawDmdPixels" || name == "RawDmdWidth" || name == "RawDmdHeight";
+            
+            if (!isPollingMethod)
+            {
+                Logger.Log($"IReflect.InvokeMember: name={name}, invokeAttr={invokeAttr}, args={(args != null ? args.Length.ToString() : "null")}");
+            }
+            
+            // Handle indexed properties - VBScript calls Switch(32) or Switch(32) = True
+            if (IndexedPropertyNames.Contains(name))
+            {
+                // PutDispProperty is what COM uses for property sets
+                bool isSet = (invokeAttr & BindingFlags.SetProperty) != 0 || (invokeAttr & BindingFlags.PutDispProperty) != 0;
+                bool isGet = (invokeAttr & BindingFlags.GetProperty) != 0;
+                
+                if (isSet && args != null && args.Length >= 2)
+                {
+                    object index = args[0]!;
+                    object value = args[1]!;
+                    
+                    switch (name)
+                    {
+                        case "Switch": set_Switch(index, Convert.ToInt32(value) != 0); return null;
+                        case "Mech": set_Mech(index, Convert.ToInt32(value)); return null;
+                        case "Dip": set_Dip(index, Convert.ToInt32(value)); return null;
+                        case "SolMask": set_SolMask(index, Convert.ToInt32(value)); return null;
+                    }
+                }
+                else if ((isGet || !isSet) && args != null && args.Length >= 1)
+                {
+                    object index = args[0]!;
+                    
+                    switch (name)
+                    {
+                        case "Switch": return get_Switch(index);
+                        case "Lamp": return get_Lamp(index);
+                        case "Solenoid": return get_Solenoid(index);
+                        case "GIString": return get_GIString(index);
+                        case "Mech": return get_Mech(index);
+                        case "GetMech": return get_GetMech(index);
+                        case "Dip": return get_Dip(index);
+                        case "SolMask": return get_SolMask(index);
+                    }
+                }
+            }
+
+            // Default behavior - use reflection on this instance
+            try
+            {
+                // Convert COM dispatch flags to .NET BindingFlags
+                BindingFlags fixedFlags = invokeAttr;
+                
+                // PutDispProperty needs to be converted to SetProperty for .NET reflection
+                if ((invokeAttr & BindingFlags.PutDispProperty) != 0)
+                {
+                    fixedFlags = (fixedFlags & ~BindingFlags.PutDispProperty) | BindingFlags.SetProperty;
+                    
+                    // Handle type coercion for property setters (VBScript passes Int16 for booleans, etc.)
+                    if (args != null && args.Length == 1)
+                    {
+                        var prop = GetType().GetProperty(name);
+                        if (prop != null && prop.CanWrite)
+                        {
+                            Type targetType = prop.PropertyType;
+                            object? value = args[0];
+                            
+                            if (value != null && value.GetType() != targetType)
+                            {
+                                try
+                                {
+                                    if (targetType == typeof(bool))
+                                    {
+                                        // VBScript passes -1 for True, 0 for False
+                                        args[0] = Convert.ToInt32(value) != 0;
+                                    }
+                                    else
+                                    {
+                                        args[0] = Convert.ChangeType(value, targetType);
+                                    }
+                                    Logger.Log($"  Converted arg from {value.GetType().Name} to {targetType.Name}");
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                }
+                
+                return GetType().InvokeMember(name, fixedFlags, binder, this, args, modifiers, culture, namedParameters);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"  InvokeMember failed: {ex.Message}");
+                throw;
+            }
+        }
+
+        #endregion
+    }
+
+    // Accessor classes with default indexers for COM indexed property access
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.AutoDispatch)]
+    public class SwitchAccessor
+    {
+        private readonly Server _server;
+        internal SwitchAccessor(Server server) => _server = server;
+        
+        [DispId(0)] // Default member
+        public bool this[object index]
+        {
+            get => _server.get_Switch(index);
+            set => _server.set_Switch(index, value);
+        }
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.AutoDispatch)]
+    public class LampAccessor
+    {
+        private readonly Server _server;
+        internal LampAccessor(Server server) => _server = server;
+        
+        [DispId(0)]
+        public bool this[object index] => _server.get_Lamp(index);
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.AutoDispatch)]
+    public class SolenoidAccessor
+    {
+        private readonly Server _server;
+        internal SolenoidAccessor(Server server) => _server = server;
+        
+        [DispId(0)]
+        public bool this[object index] => _server.get_Solenoid(index);
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.AutoDispatch)]
+    public class GIStringAccessor
+    {
+        private readonly Server _server;
+        internal GIStringAccessor(Server server) => _server = server;
+        
+        [DispId(0)]
+        public bool this[object index] => _server.get_GIString(index);
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.AutoDispatch)]
+    public class MechAccessor
+    {
+        private readonly Server _server;
+        internal MechAccessor(Server server) => _server = server;
+        
+        [DispId(0)]
+        public int this[object index]
+        {
+            get => _server.get_Mech(index);
+            set => _server.set_Mech(index, value);
+        }
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.AutoDispatch)]
+    public class GetMechAccessor
+    {
+        private readonly Server _server;
+        internal GetMechAccessor(Server server) => _server = server;
+        
+        [DispId(0)]
+        public object this[object index] => _server.get_GetMech(index);
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.AutoDispatch)]
+    public class DipAccessor
+    {
+        private readonly Server _server;
+        internal DipAccessor(Server server) => _server = server;
+        
+        [DispId(0)]
+        public int this[object index]
+        {
+            get => _server.get_Dip(index);
+            set => _server.set_Dip(index, value);
+        }
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.AutoDispatch)]
+    public class SolMaskAccessor
+    {
+        private readonly Server _server;
+        internal SolMaskAccessor(Server server) => _server = server;
+        
+        [DispId(0)]
+        public int this[object index]
+        {
+            get => _server.get_SolMask(index);
+            set => _server.set_SolMask(index, value);
+        }
     }
 }
