@@ -1376,7 +1376,7 @@ namespace B2S.ComServer
 
         public void B2SStartSound(string soundname)
         {
-            // Sound handling
+            RegistryHelper.SetSound(soundname, 1);
         }
 
         public void B2SPlaySound(string soundname)
@@ -1386,12 +1386,12 @@ namespace B2S.ComServer
 
         public void B2SStopSound(string soundname)
         {
-            // Sound handling
+            RegistryHelper.SetSound(soundname, 0);
         }
 
         public void B2SMapSound(object digit, string soundname)
         {
-            // Sound mapping
+            // Sound mapping - not needed for EXE mode
         }
 
         #endregion
