@@ -59,7 +59,7 @@ namespace B2S.ComServer
         double PMBuildVersion { get; }
         
         [DispId(23)]
-        void Run(object handle);
+        void Run([Optional] object handle);
         
         [DispId(24)]
         void Stop();
@@ -116,6 +116,61 @@ namespace B2S.ComServer
         
         [DispId(51)]
         short HandleMechanics { get; set; }
+
+        // Indexed properties exposed as get/set method pairs for COM
+        [DispId(52)]
+        bool get_Switch(object number);
+        [DispId(53)]
+        void set_Switch(object number, bool value);
+        
+        [DispId(54)]
+        bool get_Lamp(object number);
+        
+        [DispId(55)]
+        bool get_Solenoid(object number);
+        
+        [DispId(56)]
+        bool get_GIString(object number);
+        
+        [DispId(57)]
+        int get_Mech(object number);
+        [DispId(58)]
+        void set_Mech(object number, int value);
+        
+        [DispId(59)]
+        object get_GetMech(object number);
+        
+        [DispId(81)]
+        int get_Dip(object number);
+        [DispId(82)]
+        void set_Dip(object number, int value);
+        
+        [DispId(83)]
+        int get_SolMask(object number);
+        [DispId(84)]
+        void set_SolMask(object number, int value);
+
+        // DMD Properties
+        [DispId(74)]
+        int RawDmdWidth { get; }
+        
+        [DispId(75)]
+        int RawDmdHeight { get; }
+        
+        [DispId(76)]
+        object RawDmdPixels { get; }
+        
+        [DispId(77)]
+        object RawDmdColoredPixels { get; }
+        
+        [DispId(78)]
+        object ChangedNVRAM { get; }
+        
+        [DispId(79)]
+        object NVRAM { get; }
+        
+        [DispId(80)]
+        int SoundMode { get; set; }
 
         // Polling Functions
         [DispId(60)]
