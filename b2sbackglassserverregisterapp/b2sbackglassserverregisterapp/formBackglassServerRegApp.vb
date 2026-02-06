@@ -338,72 +338,118 @@ SkipRegistration:
     End Sub
 
     ''' <summary>
-    ''' Cleans up all legacy B2S.* ProgIDs that were accidentally COM-visible in the old VB.NET DLL.
+    ''' Dynamically finds and cleans up all B2S.* ProgIDs in HKEY_CLASSES_ROOT.
+    ''' This catches all legacy entries from old VB.NET DLL versions that were accidentally COM-visible.
     ''' The new C# B2S.ComServer.dll only exposes B2S.Server, so these orphaned entries cause conflicts.
     ''' </summary>
     Private Sub CleanupLegacyB2SEntries()
-        ' List of ProgIDs that were accidentally exposed in the old B2SBackglassServer.dll
-        ' These are internal classes that should never have been COM-visible
-        Dim legacyProgIds As String() = {
-            "B2S.Background",
-            "B2S.B2SAnimation",
-            "B2S.B2SBaseBox",
-            "B2S.B2SData",
-            "B2S.B2SData+AnimationCollection",
-            "B2S.B2SData+FuzzyFileName",
-            "B2S.B2SData+IlluminationGroupCollection",
-            "B2S.B2SData+PictureBoxCollection",
-            "B2S.B2SData+ReelBoxCollection",
-            "B2S.B2SData+ZOrderCollection",
-            "B2S.B2SLED",
-            "B2S.B2SLEDBox",
-            "B2S.B2SPictureBox",
-            "B2S.B2SPlayer",
-            "B2S.B2SPlayer+ControlCollection",
-            "B2S.B2SReelBox",
-            "B2S.B2SReelDisplay",
-            "B2S.B2SReelDisplay+ReelBoxCollection",
-            "B2S.B2SScreen",
-            "B2S.B2SSettings",
-            "B2S.B2SSnifferPanel",
-            "B2S.B2SStatistics",
-            "B2S.B2SStatistics+StatsCollection",
-            "B2S.B2SVersionInfo",
-            "B2S.Dream7Display",
-            "B2S.formBackglass",
-            "B2S.formDMD",
-            "B2S.formMode",
-            "B2S.formSettings",
-            "B2S.Processes"
-        }
-
         Try
+            ' First, find all B2S.* entries dynamically
+            Dim foundEntries As New List(Of String)
+            Dim foundClsids As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+            
             Using regRoot As RegistryKey = Registry.ClassesRoot
-                For Each progId As String In legacyProgIds
-                    Try
-                        ' Get the CLSID for this ProgID
-                        Dim clsid As String = Nothing
-                        Using progIdKey As RegistryKey = regRoot.OpenSubKey(progId & "\CLSID", False)
-                            If progIdKey IsNot Nothing Then
-                                clsid = CStr(progIdKey.GetValue(""))
-                            End If
-                        End Using
-
-                        ' Delete the ProgID entry
-                        regRoot.DeleteSubKeyTree(progId, False)
-
-                        ' Delete the CLSID entries if we found one
-                        If Not String.IsNullOrEmpty(clsid) Then
-                            regRoot.OpenSubKey("CLSID", True)?.DeleteSubKeyTree(clsid, False)
-                            regRoot.OpenSubKey("WOW6432Node\CLSID", True)?.DeleteSubKeyTree(clsid, False)
-                        End If
-                    Catch
-                        ' Ignore errors for individual entries - they may not exist
-                    End Try
+                ' Enumerate all subkeys looking for B2S.* ProgIDs (but not B2S.Server)
+                For Each subKeyName As String In regRoot.GetSubKeyNames()
+                    If subKeyName.StartsWith("B2S.", StringComparison.OrdinalIgnoreCase) AndAlso
+                       Not subKeyName.Equals("B2S.Server", StringComparison.OrdinalIgnoreCase) Then
+                        foundEntries.Add(subKeyName)
+                        
+                        ' Try to get the CLSID for this ProgID
+                        Try
+                            Using progIdKey As RegistryKey = regRoot.OpenSubKey(subKeyName & "\CLSID", False)
+                                If progIdKey IsNot Nothing Then
+                                    Dim clsidValue As String = CStr(progIdKey.GetValue(""))
+                                    If Not String.IsNullOrEmpty(clsidValue) Then
+                                        foundClsids.Add(clsidValue)
+                                    End If
+                                End If
+                            End Using
+                        Catch
+                        End Try
+                    End If
                 Next
             End Using
-        Catch
-            ' Ignore errors - user may not have admin rights or entries don't exist
+            
+            ' If nothing found, we're done
+            If foundEntries.Count = 0 Then
+                Return
+            End If
+            
+            ' Ask user for confirmation
+            Dim confirmResult As DialogResult = MessageBox.Show(
+                $"Found {foundEntries.Count} legacy B2S.* registry entries (not including B2S.Server) with {foundClsids.Count} associated CLSIDs." & vbCrLf & vbCrLf &
+                "These are leftover entries from old B2SBackglassServer.dll versions that were accidentally COM-visible." & vbCrLf &
+                "The new COM server only uses B2S.Server." & vbCrLf & vbCrLf &
+                "Do you want to remove these legacy entries?" & vbCrLf & vbCrLf &
+                "YES = Remove all legacy entries (recommended)" & vbCrLf &
+                "NO = Keep legacy entries",
+                "Clean Up Legacy Registry Entries",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question)
+            
+            If confirmResult <> DialogResult.Yes Then
+                Return
+            End If
+            
+            ' Now delete all found entries
+            Dim deletedProgIds As Integer = 0
+            Dim deletedClsids As Integer = 0
+            
+            Using regRoot As RegistryKey = Registry.ClassesRoot
+                ' Delete ProgID entries
+                For Each progId As String In foundEntries
+                    Try
+                        regRoot.DeleteSubKeyTree(progId, False)
+                        deletedProgIds += 1
+                    Catch
+                    End Try
+                Next
+                
+                ' Delete CLSID entries
+                Using clsidKey As RegistryKey = regRoot.OpenSubKey("CLSID", True)
+                    If clsidKey IsNot Nothing Then
+                        For Each clsid As String In foundClsids
+                            Try
+                                clsidKey.DeleteSubKeyTree(clsid, False)
+                                deletedClsids += 1
+                            Catch
+                            End Try
+                        Next
+                    End If
+                End Using
+                
+                ' Delete WOW6432Node CLSID entries (for 32-bit entries on 64-bit systems)
+                Try
+                    Using wow64ClsidKey As RegistryKey = regRoot.OpenSubKey("WOW6432Node\CLSID", True)
+                        If wow64ClsidKey IsNot Nothing Then
+                            For Each clsid As String In foundClsids
+                                Try
+                                    wow64ClsidKey.DeleteSubKeyTree(clsid, False)
+                                Catch
+                                End Try
+                            Next
+                        End If
+                    End Using
+                Catch
+                End Try
+            End Using
+            
+            MessageBox.Show(
+                $"Cleanup completed:" & vbCrLf &
+                $"  Removed {deletedProgIds} of {foundEntries.Count} ProgID entries" & vbCrLf &
+                $"  Removed {deletedClsids} of {foundClsids.Count} CLSID entries",
+                "Registry Cleanup Complete",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information)
+                
+        Catch ex As Exception
+            MessageBox.Show(
+                "Error during registry cleanup: " & ex.Message & vbCrLf & vbCrLf &
+                "Make sure you are running as Administrator.",
+                "Registry Cleanup Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning)
         End Try
     End Sub
 
