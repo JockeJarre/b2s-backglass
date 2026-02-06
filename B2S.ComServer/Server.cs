@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Timers;
+using System.Xml;
 using Microsoft.Win32;
 
 namespace B2S.ComServer
@@ -72,14 +73,61 @@ namespace B2S.ComServer
             }
         }
 
+        private const string SETTINGS_FILENAME = "B2STableSettings.xml";
+        private bool _arePluginsOn = false;
+        
         private void LoadSettings()
         {
-            Logger.Log("Loading settings...");
+            Logger.Log("Loading settings from B2STableSettings.xml...");
             
-            bool pluginsOn = ReadRegistrySetting("Software\\B2S", "ArePluginsOn", "0") == "1";
-            Logger.Log($"Plugins enabled: {pluginsOn}");
+            // Find the settings file (same logic as VB version)
+            string settingsPath = FindSettingsFile();
+            Logger.Log($"Settings file path: {settingsPath}");
             
-            if (pluginsOn)
+            if (!string.IsNullOrEmpty(settingsPath) && File.Exists(settingsPath))
+            {
+                try
+                {
+                    var xml = new XmlDocument();
+                    xml.Load(settingsPath);
+                    
+                    var nodeHeader = xml.SelectSingleNode("B2STableSettings");
+                    if (nodeHeader != null)
+                    {
+                        // Read ArePluginsOn setting
+                        var pluginsNode = nodeHeader.SelectSingleNode("ArePluginsOn");
+                        if (pluginsNode != null)
+                        {
+                            _arePluginsOn = pluginsNode.InnerText == "1";
+                        }
+                        
+                        // Log other useful settings
+                        var startModeNode = nodeHeader.SelectSingleNode("DefaultStartMode");
+                        if (startModeNode != null)
+                        {
+                            Logger.Log($"DefaultStartMode: {startModeNode.InnerText}");
+                        }
+                        
+                        var logPathNode = nodeHeader.SelectSingleNode("LogPath");
+                        if (logPathNode != null && !string.IsNullOrEmpty(logPathNode.InnerText))
+                        {
+                            Logger.Log($"LogPath from settings: {logPathNode.InnerText}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogException(ex, "Loading B2STableSettings.xml");
+                }
+            }
+            else
+            {
+                Logger.Log("B2STableSettings.xml not found, using defaults");
+            }
+            
+            Logger.Log($"Plugins enabled: {_arePluginsOn}");
+            
+            if (_arePluginsOn)
             {
                 try
                 {
@@ -96,6 +144,47 @@ namespace B2S.ComServer
             {
                 RegistryHelper.SetValue("Plugins", 0);
             }
+        }
+        
+        /// <summary>
+        /// Finds the B2STableSettings.xml file using the same logic as the VB version.
+        /// Checks: current directory, startup path, and assembly location.
+        /// Also respects B2STableSettingsExtendedPath registry setting.
+        /// </summary>
+        private string FindSettingsFile()
+        {
+            // Check current directory first
+            if (File.Exists(SETTINGS_FILENAME))
+            {
+                return Path.GetFullPath(SETTINGS_FILENAME);
+            }
+            
+            // Check B2STableSettingsExtendedPath registry setting
+            bool extendedPath = ReadRegistrySetting("Software\\B2S", "B2STableSettingsExtendedPath", "0") == "1";
+            
+            if (extendedPath)
+            {
+                // Check AppDomain.CurrentDomain.BaseDirectory (like VB Application.StartupPath)
+                string startupPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, SETTINGS_FILENAME);
+                if (File.Exists(startupPath))
+                {
+                    return startupPath;
+                }
+                
+                // Check assembly location directory
+                string? assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                if (!string.IsNullOrEmpty(assemblyDir))
+                {
+                    string assemblyPath = Path.Combine(assemblyDir, SETTINGS_FILENAME);
+                    if (File.Exists(assemblyPath))
+                    {
+                        return assemblyPath;
+                    }
+                }
+            }
+            
+            // Return the default filename (will be checked for existence by caller)
+            return SETTINGS_FILENAME;
         }
 
         private void InitializePlugins()
