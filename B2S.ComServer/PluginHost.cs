@@ -6,7 +6,7 @@ using System.IO;
 using System.Linq;
 
 #if HAS_PLUGIN_INTERFACE
-using B2S;
+using B2SServerPluginInterface;
 #endif
 
 namespace B2S.ComServer
@@ -101,7 +101,10 @@ namespace B2S.ComServer
             {
                 try
                 {
-                    plugin.PinMameRun();
+                    if (plugin is IDirectPluginPinMame pinMamePlugin)
+                    {
+                        pinMamePlugin.PinMameRun();
+                    }
                 }
                 catch
                 {
@@ -119,7 +122,10 @@ namespace B2S.ComServer
             {
                 try
                 {
-                    plugin.PinMamePause();
+                    if (plugin is IDirectPluginPinMame pinMamePlugin)
+                    {
+                        pinMamePlugin.PinMamePause();
+                    }
                 }
                 catch
                 {
@@ -137,7 +143,10 @@ namespace B2S.ComServer
             {
                 try
                 {
-                    plugin.PinMameContinue();
+                    if (plugin is IDirectPluginPinMame pinMamePlugin)
+                    {
+                        pinMamePlugin.PinMameContinue();
+                    }
                 }
                 catch
                 {
@@ -155,7 +164,10 @@ namespace B2S.ComServer
             {
                 try
                 {
-                    plugin.PinMameStop();
+                    if (plugin is IDirectPluginPinMame pinMamePlugin)
+                    {
+                        pinMamePlugin.PinMameStop();
+                    }
                 }
                 catch
                 {
@@ -173,7 +185,7 @@ namespace B2S.ComServer
             {
                 try
                 {
-                    plugin.PinMameDataReceive(tableElementTypeChar, number, value);
+                    plugin.DataReceive(tableElementTypeChar, number, value);
                 }
                 catch
                 {
@@ -192,7 +204,10 @@ namespace B2S.ComServer
                 for (int i = 0; i <= array.GetUpperBound(0); i++)
                 {
                     int number = Convert.ToInt32(array[i, 0]);
-                    int value = Convert.ToInt32(array[i, 1]);
+                    // For 'D' (LEDs/Digits), value is in column 2, otherwise column 1
+                    int value = tableElementTypeChar == 'D' 
+                        ? Convert.ToInt32(array[i, 2]) 
+                        : Convert.ToInt32(array[i, 1]);
                     DataReceive(tableElementTypeChar, number, value);
                 }
             }
