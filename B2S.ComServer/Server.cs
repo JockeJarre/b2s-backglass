@@ -539,9 +539,12 @@ namespace B2S.ComServer
                     Logger.Log("LaunchBackglass is FALSE - skipping backglass EXE");
                 }
                 
-                Logger.Log("Calling VPinMAME.Run()...");
-                InvokeVPMMethod("Run", handleValue);
-                Logger.Log("VPinMAME.Run() completed");
+                if (_gameName != null && _gameName != string.Empty) // Don't call VPinMAME.Run() if GameName isn't set (IsROMControlled)
+                {
+                    Logger.Log("Calling VPinMAME.Run()...");
+                    InvokeVPMMethod("Run", handleValue);
+                    Logger.Log("VPinMAME.Run() completed");
+                }
                 
                 if (_pluginHost != null)
                 {
