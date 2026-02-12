@@ -344,41 +344,65 @@ SkipRegistration:
     ''' </summary>
     Private Sub CleanupLegacyB2SEntries()
         Try
-            ' First, find all B2S.* entries dynamically
-            Dim foundEntries As New List(Of String)
-            Dim foundClsids As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
-            
-            Using regRoot As RegistryKey = Registry.ClassesRoot
-                ' Enumerate all subkeys looking for B2S.* ProgIDs (but not B2S.Server)
-                For Each subKeyName As String In regRoot.GetSubKeyNames()
-                    If subKeyName.StartsWith("B2S.", StringComparison.OrdinalIgnoreCase) AndAlso
-                       Not subKeyName.Equals("B2S.Server", StringComparison.OrdinalIgnoreCase) Then
-                        foundEntries.Add(subKeyName)
-                        
-                        ' Try to get the CLSID for this ProgID
-                        Try
-                            Using progIdKey As RegistryKey = regRoot.OpenSubKey(subKeyName & "\CLSID", False)
-                                If progIdKey IsNot Nothing Then
-                                    Dim clsidValue As String = CStr(progIdKey.GetValue(""))
-                                    If Not String.IsNullOrEmpty(clsidValue) Then
-                                        foundClsids.Add(clsidValue)
+            ' First, find all B2S.* entries dynamically across registry views
+            Dim viewsToCheck As New List(Of RegistryView) From {RegistryView.Registry32}
+            If Environment.Is64BitOperatingSystem Then
+                viewsToCheck.Add(RegistryView.Registry64)
+            End If
+
+            Dim viewProgIds As New Dictionary(Of RegistryView, List(Of String))()
+            Dim viewClsids As New Dictionary(Of RegistryView, HashSet(Of String))()
+
+            For Each view As RegistryView In viewsToCheck
+                Dim foundEntries As New List(Of String)
+                Dim foundClsids As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+
+                Using regRoot As RegistryKey = RegistryKey.OpenBaseKey(RegistryHive.ClassesRoot, view)
+                    ' Enumerate all subkeys looking for B2S.* ProgIDs (but not B2S.Server)
+                    For Each subKeyName As String In regRoot.GetSubKeyNames()
+                        If subKeyName.StartsWith("B2S.", StringComparison.OrdinalIgnoreCase) AndAlso
+                           Not subKeyName.Equals("B2S.Server", StringComparison.OrdinalIgnoreCase) Then
+                            foundEntries.Add(subKeyName)
+
+                            ' Try to get the CLSID for this ProgID
+                            Try
+                                Using progIdKey As RegistryKey = regRoot.OpenSubKey(subKeyName & "\CLSID", False)
+                                    If progIdKey IsNot Nothing Then
+                                        Dim clsidValue As String = CStr(progIdKey.GetValue(""))
+                                        If Not String.IsNullOrEmpty(clsidValue) Then
+                                            foundClsids.Add(clsidValue)
+                                        End If
                                     End If
-                                End If
-                            End Using
-                        Catch
-                        End Try
-                    End If
-                Next
-            End Using
-            
+                                End Using
+                            Catch
+                            End Try
+                        End If
+                    Next
+                End Using
+
+                If foundEntries.Count > 0 Then
+                    viewProgIds(view) = foundEntries
+                    viewClsids(view) = foundClsids
+                End If
+            Next
+
+            Dim totalProgIds As Integer = 0
+            Dim totalClsids As Integer = 0
+            For Each progIds As List(Of String) In viewProgIds.Values
+                totalProgIds += progIds.Count
+            Next
+            For Each clsids As HashSet(Of String) In viewClsids.Values
+                totalClsids += clsids.Count
+            Next
+
             ' If nothing found, we're done
-            If foundEntries.Count = 0 Then
+            If totalProgIds = 0 Then
                 Return
             End If
             
             ' Ask user for confirmation
             Dim confirmResult As DialogResult = MessageBox.Show(
-                $"Found {foundEntries.Count} legacy B2S.* registry entries (not including B2S.Server) with {foundClsids.Count} associated CLSIDs." & vbCrLf & vbCrLf &
+                $"Found {totalProgIds} legacy B2S.* registry entries (not including B2S.Server) with {totalClsids} associated CLSIDs." & vbCrLf & vbCrLf &
                 "These are leftover entries from old B2SBackglassServer.dll versions" & vbCrLf &
                 "The new COM server only uses B2S.Server." & vbCrLf & vbCrLf &
                 "Do you want to remove these legacy entries?" & vbCrLf & vbCrLf &
@@ -395,50 +419,37 @@ SkipRegistration:
             ' Now delete all found entries
             Dim deletedProgIds As Integer = 0
             Dim deletedClsids As Integer = 0
-            
-            Using regRoot As RegistryKey = Registry.ClassesRoot
-                ' Delete ProgID entries
-                For Each progId As String In foundEntries
-                    Try
-                        regRoot.DeleteSubKeyTree(progId, False)
-                        deletedProgIds += 1
-                    Catch
-                    End Try
-                Next
-                
-                ' Delete CLSID entries
-                Using clsidKey As RegistryKey = regRoot.OpenSubKey("CLSID", True)
-                    If clsidKey IsNot Nothing Then
-                        For Each clsid As String In foundClsids
-                            Try
-                                clsidKey.DeleteSubKeyTree(clsid, False)
-                                deletedClsids += 1
-                            Catch
-                            End Try
-                        Next
-                    End If
-                End Using
-                
-                ' Delete WOW6432Node CLSID entries (for 32-bit entries on 64-bit systems)
-                Try
-                    Using wow64ClsidKey As RegistryKey = regRoot.OpenSubKey("WOW6432Node\CLSID", True)
-                        If wow64ClsidKey IsNot Nothing Then
-                            For Each clsid As String In foundClsids
+
+            For Each view As RegistryView In viewProgIds.Keys
+                Using regRoot As RegistryKey = RegistryKey.OpenBaseKey(RegistryHive.ClassesRoot, view)
+                    ' Delete ProgID entries
+                    For Each progId As String In viewProgIds(view)
+                        Try
+                            regRoot.DeleteSubKeyTree(progId, False)
+                            deletedProgIds += 1
+                        Catch
+                        End Try
+                    Next
+
+                    ' Delete CLSID entries
+                    Using clsidKey As RegistryKey = regRoot.OpenSubKey("CLSID", True)
+                        If clsidKey IsNot Nothing Then
+                            For Each clsid As String In viewClsids(view)
                                 Try
-                                    wow64ClsidKey.DeleteSubKeyTree(clsid, False)
+                                    clsidKey.DeleteSubKeyTree(clsid, False)
+                                    deletedClsids += 1
                                 Catch
                                 End Try
                             Next
                         End If
                     End Using
-                Catch
-                End Try
-            End Using
+                End Using
+            Next
             
             MessageBox.Show(
                 $"Cleanup completed:" & vbCrLf &
-                $"  Removed {deletedProgIds} of {foundEntries.Count} ProgID entries" & vbCrLf &
-                $"  Removed {deletedClsids} of {foundClsids.Count} CLSID entries",
+                $"  Removed {deletedProgIds} of {totalProgIds} ProgID entries" & vbCrLf &
+                $"  Removed {deletedClsids} of {totalClsids} CLSID entries",
                 "Registry Cleanup Complete",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information)
