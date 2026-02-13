@@ -30,6 +30,7 @@ Public Class formBackglassServerRegApp
         Dim version As String = String.Empty
         Dim dialogResult As DialogResult
         Dim clsID As String = String.Empty
+        Dim alreadyInstalledfilepath As String = String.Empty
 
         If Not CommandSilent Then
             If CheckB2SServer(False) Then
@@ -58,14 +59,15 @@ Public Class formBackglassServerRegApp
                     End Using
                 Catch
                 End Try
-                Dim filepath As String = New Uri(dllURI).LocalPath
-                dialogResult = MessageBox.Show($"The 'B2S Server'{dllVersion} is already registered here:" & vbCrLf & vbCrLf & filepath & vbCrLf & vbCrLf & "Do you want to (try to) re-register it?", My.Application.Info.AssemblyName, MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation)
+
+                alreadyInstalledfilepath = New Uri(dllURI).LocalPath
+                dialogResult = MessageBox.Show($"The 'B2S Server'{dllVersion} is already registered here:" & vbCrLf & vbCrLf & alreadyInstalledfilepath & vbCrLf & vbCrLf & "Do you want to (try to) re-register it?", My.Application.Info.AssemblyName, MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation)
             Else
                 dialogResult = MessageBox.Show("The 'B2S Server' is not registered yet." & vbCrLf & vbCrLf & "Do you want to register it?", My.Application.Info.AssemblyName, MessageBoxButtons.YesNo, MessageBoxIcon.Information)
             End If
         End If
 
-        ' get .NET framework base directoy
+        ' get .NET framework base directory
         If CommandSilent Or dialogResult = DialogResult.Yes Then
             Using regkey As RegistryKey = Registry.LocalMachine.OpenSubKey("SOFTWARE\Microsoft\.NetFramework", False)
                 If regkey IsNot Nothing Then
@@ -112,39 +114,33 @@ Public Class formBackglassServerRegApp
                 
                 ' Clean up ALL old B2S.* ProgIDs from legacy VB.NET DLL (these were accidentally COM-visible)
                 ' The new C# B2S.ComServer.dll only exposes B2S.Server, so these are no longer needed
-                CleanupLegacyB2SEntries()
-                
-                ' Ask which DLL to register
-                Dim dllToRegister As String = "B2SBackglassServer.DLL"
+                CleanupLegacyB2SEntries(CommandSilent)
+
+                ' Default to the COM server which is already installed in the earlier check, but if both are present ask the user which one to register
+                Dim dllToRegister As String = If(String.IsNullOrEmpty(alreadyInstalledfilepath) Or alreadyInstalledfilepath.EndsWith("B2SBackglassServer.DLL", StringComparison.OrdinalIgnoreCase), "B2SBackglassServer.DLL", "B2S.ComServer.dll")
                 If Not CommandSilent Then
+                    ' Ask which DLL to register
                     Dim hasComServer As Boolean = File.Exists(Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "B2S.ComServer.dll"))
                     Dim hasLegacyServer As Boolean = File.Exists(Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "B2SBackglassServer.DLL"))
-                    
                     If hasComServer AndAlso hasLegacyServer Then
                         Dim dllChoice As DialogResult = MessageBox.Show(
                             "Which COM server do you want to register?" & vbCrLf & vbCrLf &
-                            "YES = New C# B2S.ComServer.dll (recommended, smaller, faster)" & vbCrLf &
-                            "NO = Legacy VB B2SBackglassServer.dll" & vbCrLf & vbCrLf &
+                            "YES = VB B2SBackglassServer.dll" & vbCrLf & 
+                            "NO  = C# B2S.ComServer.dll" & vbCrLf & vbCrLf &
                             "Both DLLs were found in the installation directory.",
                             "Select COM Server to Register",
                             MessageBoxButtons.YesNoCancel,
                             MessageBoxIcon.Question)
                         
                         If dllChoice = DialogResult.Yes Then
-                            dllToRegister = "B2S.ComServer.dll"
-                        ElseIf dllChoice = DialogResult.No Then
                             dllToRegister = "B2SBackglassServer.DLL"
+                        ElseIf dllChoice = DialogResult.No Then
+                            dllToRegister = "B2S.ComServer.dll"
                         Else
                             ' Cancel - don't register anything
                             GoTo SkipRegistration
                         End If
-                    ElseIf hasComServer Then
-                        dllToRegister = "B2S.ComServer.dll"
-                        MessageBox.Show("Only B2S.ComServer.dll found. Will register the new C# COM server.", "COM Server Selection", MessageBoxButtons.OK, MessageBoxIcon.Information)
-                    ElseIf hasLegacyServer Then
-                        dllToRegister = "B2SBackglassServer.DLL"
-                        MessageBox.Show("Only B2SBackglassServer.dll found. Will register the legacy VB COM server.", "COM Server Selection", MessageBoxButtons.OK, MessageBoxIcon.Information)
-                    Else
+                    ElseIf Not hasComServer AndAlso Not hasLegacyServer Then
                         MessageBox.Show("Neither B2S.ComServer.dll nor B2SBackglassServer.dll found in the installation directory!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
                         GoTo SkipRegistration
                     End If
@@ -236,11 +232,12 @@ SkipRegistration:
 
                 Catch ex As UnauthorizedAccessException
                     MessageBox.Show("UnauthorizedAccessException", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                    Stop
                 End Try
             End Using
 
         End If
-
+        If Not CommandSilent Then MessageBox.Show("Everything is fine, the 'B2S backglass server' is registered.", My.Application.Info.AssemblyName, MessageBoxButtons.OK, MessageBoxIcon.Information)
 
         End
 
@@ -273,10 +270,8 @@ SkipRegistration:
             err = True
             ret = False
         End Try
-        If Not err Then
-            If showmessages Then MessageBox.Show("Everything is fine, the 'B2S backglass server' is registered.", My.Application.Info.AssemblyName, MessageBoxButtons.OK, MessageBoxIcon.Information)
-        ElseIf showmessages Then
-            MessageBox.Show("Oops, the 'B2S backglass server' is NOT registered. Have you started this app as 'Administrator'?" & vbCrLf & vbCrLf & "(" & errmessage & ")", My.Application.Info.AssemblyName, MessageBoxButtons.OK, MessageBoxIcon.Error)
+        If err and showmessages Then
+            MessageBox.Show("Oops, the 'B2S Server' is NOT registered. Have you started this app as 'Administrator'?" & vbCrLf & vbCrLf & "(" & errmessage & ")", My.Application.Info.AssemblyName, MessageBoxButtons.OK, MessageBoxIcon.Error)
         End If
 
         Return ret
@@ -342,7 +337,7 @@ SkipRegistration:
     ''' This catches all legacy entries from old VB.NET DLL versions that were accidentally COM-visible.
     ''' The new C# B2S.ComServer.dll only exposes B2S.Server, so these orphaned entries cause conflicts.
     ''' </summary>
-    Private Sub CleanupLegacyB2SEntries()
+    Private Sub CleanupLegacyB2SEntries(CommandSilent As Boolean)
         Try
             ' First, find all B2S.* entries dynamically across registry views
             Dim viewsToCheck As New List(Of RegistryView) From {RegistryView.Registry32}
@@ -401,16 +396,21 @@ SkipRegistration:
             End If
             
             ' Ask user for confirmation
-            Dim confirmResult As DialogResult = MessageBox.Show(
-                $"Found {totalProgIds} legacy B2S.* registry entries (not including B2S.Server) with {totalClsids} associated CLSIDs." & vbCrLf & vbCrLf &
-                "These are leftover entries from old B2SBackglassServer.dll versions" & vbCrLf &
-                "The new COM server only uses B2S.Server." & vbCrLf & vbCrLf &
-                "Do you want to remove these legacy entries?" & vbCrLf & vbCrLf &
-                "YES = Remove all legacy entries (recommended)" & vbCrLf &
-                "NO = Keep legacy entries",
-                "Clean Up Legacy Registry Entries",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question)
+            Dim confirmResult As DialogResult
+            If CommandSilent Then
+                confirmResult = DialogResult.Yes
+            Else
+                confirmResult = MessageBox.Show(
+                    $"Found {totalProgIds} legacy B2S.* registry entries with {totalClsids} associated CLSIDs." & vbCrLf & vbCrLf &
+                    "These are leftover entries from old B2SBackglassServer.dll versions" & vbCrLf &
+                    "The new version uses one called 'B2S.Server'." & vbCrLf & vbCrLf &
+                    "Do you want to remove these legacy entries?" & vbCrLf & vbCrLf &
+                    "YES = Remove all legacy entries (recommended)" & vbCrLf &
+                    "NO = Keep legacy entries",
+                    "Clean Up Legacy Registry Entries",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question)
+            End If
             
             If confirmResult <> DialogResult.Yes Then
                 Return
