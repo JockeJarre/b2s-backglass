@@ -1,6 +1,7 @@
 Imports System
 Imports System.Windows.Forms
 Imports System.Drawing
+Imports System.Drawing.Drawing2D
 
 Public Class B2SReelBox
 
@@ -51,6 +52,7 @@ Public Class B2SReelBox
     Protected Overrides Sub OnPaint(ByVal e As System.Windows.Forms.PaintEventArgs)
 
         If Not String.IsNullOrEmpty(reelindex) Then
+            Dim reelBounds As New Rectangle(0, 0, Me.Width, Me.Height)
             Dim images As Generic.Dictionary(Of String, Image) = If(_Illuminated, B2SData.ReelIlluImages, B2SData.ReelImages)
             Dim intimages As Generic.Dictionary(Of String, Image) = If(_Illuminated, B2SData.ReelIntermediateIlluImages, B2SData.ReelIntermediateImages)
             Dim name As String = String.Empty
@@ -58,41 +60,53 @@ Public Class B2SReelBox
                 Static firstintermediatecount As Integer = 1
                 name = _ReelType & "_" & reelindex & If(SetID > 0 AndAlso _Illuminated, "_" & SetID.ToString(), "") & "_" & firstintermediatecount.ToString()
                 If intimages.ContainsKey(name) Then
-                    e.Graphics.DrawImage(intimages(name), e.ClipRectangle)
+                    e.Graphics.DrawImage(intimages(name), reelBounds)
                     firstintermediatecount += 1
                     intermediates2go = 2
                 Else
                     name = _ReelType & "_" & ConvertText(_CurrentText + 1) & If(SetID > 0 AndAlso _Illuminated, "_" & SetID.ToString(), "")
-                    If images.ContainsKey(name) Then e.Graphics.DrawImage(images(name), e.ClipRectangle)
+                    If images.ContainsKey(name) Then e.Graphics.DrawImage(images(name), reelBounds)
                     intermediates = firstintermediatecount - 1
                     intermediates2go = 1
                 End If
             ElseIf intermediates2go > 0 Then
                 name = _ReelType & "_" & reelindex & If(SetID > 0 AndAlso _Illuminated, "_" & SetID.ToString(), "") & "_" & (intermediates - intermediates2go + 1).ToString()
-                If intimages.ContainsKey(name) Then e.Graphics.DrawImage(intimages(name), e.ClipRectangle)
+                If intimages.ContainsKey(name) Then e.Graphics.DrawImage(intimages(name), reelBounds)
             Else
                 name = _ReelType & "_" & reelindex & If(SetID > 0 AndAlso _Illuminated, "_" & SetID.ToString(), "")
-                If images.ContainsKey(name) Then e.Graphics.DrawImage(images(name), e.ClipRectangle)
+                If images.ContainsKey(name) Then e.Graphics.DrawImage(images(name), reelBounds)
             End If
         End If
 
     End Sub
-    'Protected Overrides Sub OnPaintBackground(pevent As System.Windows.Forms.PaintEventArgs)
+    Protected Overrides Sub OnPaintBackground(ByVal pevent As System.Windows.Forms.PaintEventArgs)
 
-    '    ' nothing to do but important
+        If Me.BackColor = Color.Transparent AndAlso Me.Parent IsNot Nothing Then
+            Dim state As GraphicsState = pevent.Graphics.Save()
+            Try
+                pevent.Graphics.TranslateTransform(-Me.Left, -Me.Top)
+                Dim parentBounds As New Rectangle(Me.Left, Me.Top, Me.Width, Me.Height)
+                Dim parentEvent As New PaintEventArgs(pevent.Graphics, parentBounds)
+                Me.InvokePaintBackground(Me.Parent, parentEvent)
+                Me.InvokePaint(Me.Parent, parentEvent)
+            Finally
+                pevent.Graphics.Restore(state)
+            End Try
+        Else
+            MyBase.OnPaintBackground(pevent)
+        End If
 
-    'End Sub
+    End Sub
 
     Public Sub New()
 
         ' set some styles
-        Me.SetStyle(ControlStyles.AllPaintingInWmPaint Or ControlStyles.UserPaint Or ControlStyles.DoubleBuffer, True) 
-        'Or ControlStyles.SupportsTransparentBackColor, True)
+        Me.SetStyle(ControlStyles.AllPaintingInWmPaint Or ControlStyles.UserPaint Or ControlStyles.DoubleBuffer Or ControlStyles.SupportsTransparentBackColor, True)
 
         Me.DoubleBuffered = True
 
         ' let transparent reel art render over the backglass
-        'Me.BackColor = Color.Transparent
+        Me.BackColor = Color.Transparent
 
         ' create timer
         timer = New Timer()
