@@ -12,6 +12,7 @@ Module moduleFormTransparency
 
     Public Sub EnableFormTransparencyIfNeeded(hostForm As Form, image As Image, Optional sourceDescription As String = Nothing)
         If hostForm Is Nothing OrElse image Is Nothing Then Return
+        If Not B2SSettings.IsImageTransparencyEnabled Then Return
         If hostForm.TransparencyKey = conditionalTransparencyKey Then Return
         If Not ImageHasTransparentPixels(image) Then Return
 

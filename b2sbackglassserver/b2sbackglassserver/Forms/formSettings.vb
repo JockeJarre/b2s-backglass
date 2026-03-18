@@ -104,6 +104,7 @@ Public Class formSettings
         chkBulbs.Checked = B2SSettings.IsGlowBulbOn
         cmbFormFront.SelectedIndex = If(B2SSettings.FormToBack, 0, If(B2SSettings.FormToFront, 2, 1))
         chkDisableFuzzyMatching.Checked = B2SSettings.DisableFuzzyMatching
+        cmbImageTransparency.SelectedIndex = If(B2SSettings.ImageTransparency.HasValue, If(B2SSettings.ImageTransparency.Value, 0, 1), 2)
 
         cmbGlowing.SelectedIndex = If(B2SSettings.GlowIndex <> -1, B2SSettings.GlowIndex, cmbGlowing.Items.Count - 1)
         activateMsgBoxAtSaving = False
@@ -484,6 +485,16 @@ Public Class formSettings
 
     Private Sub chkDisableFuzzyMatching_CheckedChanged(sender As Object, e As EventArgs) Handles chkDisableFuzzyMatching.CheckedChanged
         B2SSettings.DisableFuzzyMatching = chkDisableFuzzyMatching.Checked
+    End Sub
+
+    Private Sub cmbImageTransparency_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbImageTransparency.SelectedIndexChanged
+        activateMsgBoxAtSaving = True
+        isSettingsScreenDirty = True
+        If cmbImageTransparency.SelectedIndex = 2 Then
+            B2SSettings.ImageTransparency = Nothing
+        Else
+            B2SSettings.ImageTransparency = (cmbImageTransparency.SelectedIndex = 0)
+        End If
     End Sub
 
     Private Sub chkFormNoFocus_CheckedChanged(sender As Object, e As EventArgs) Handles chkFormNoFocus.CheckedChanged

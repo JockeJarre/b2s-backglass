@@ -208,6 +208,16 @@ Public Class B2SSettings
 
     Public Shared Property StartBackground() As Nullable(Of Boolean) = Nothing
     Public Shared Property GlobalStartBackground() As Nullable(Of Boolean) = Nothing
+    Public Shared Property ImageTransparency() As Nullable(Of Boolean) = Nothing
+    Public Shared Property GlobalImageTransparency() As Nullable(Of Boolean) = Nothing
+
+    Public Shared ReadOnly Property IsImageTransparencyEnabled() As Boolean
+        Get
+            If ImageTransparency.HasValue Then Return ImageTransparency.Value
+            If GlobalImageTransparency.HasValue Then Return GlobalImageTransparency.Value
+            Return False
+        End Get
+    End Property
 
 
     Public Shared ReadOnly Property IsROMControlled() As Boolean
@@ -286,6 +296,7 @@ Public Class B2SSettings
         If xmlNode.SelectSingleNode("StartAsEXE") IsNot Nothing Then StartAsEXE = (xmlNode.SelectSingleNode("StartAsEXE").InnerText = "1")
         If xmlNode.SelectSingleNode("StartBackground") IsNot Nothing Then StartBackground = (xmlNode.SelectSingleNode("StartBackground").InnerText = "1")
         If xmlNode.SelectSingleNode("DisableFuzzyMatching") IsNot Nothing Then DisableFuzzyMatching = (xmlNode.SelectSingleNode("DisableFuzzyMatching").InnerText = "1")
+        If xmlNode.SelectSingleNode("ImageTransparency") IsNot Nothing Then ImageTransparency = (xmlNode.SelectSingleNode("ImageTransparency").InnerText = "1")
 
         If Not PureEXE Then
             If xmlNode.SelectSingleNode("FormToFront") IsNot Nothing Then FormToFront = (xmlNode.SelectSingleNode("FormToFront").InnerText = "1")
@@ -344,6 +355,8 @@ Public Class B2SSettings
                 LoadGlobalAndTableSettings(nodeHeader)
                 If StartBackground.HasValue Then GlobalStartBackground = StartBackground
                 StartBackground = Nothing
+                If ImageTransparency.HasValue Then GlobalImageTransparency = ImageTransparency
+                ImageTransparency = Nothing
 
                 If nodeHeader.SelectSingleNode("ScreenshotPath") IsNot Nothing Then
                     ScreenshotPath = nodeHeader.SelectSingleNode("ScreenshotPath").InnerText
@@ -430,6 +443,9 @@ Public Class B2SSettings
             If GlobalStartBackground.HasValue Then
                 AddNode(XML, nodeHeader, "StartBackground", If(GlobalStartBackground, "1", "0"))
             End If
+            If GlobalImageTransparency.HasValue Then
+                AddNode(XML, nodeHeader, "ImageTransparency", If(GlobalImageTransparency, "1", "0"))
+            End If
             If Not String.IsNullOrEmpty(GameName) OrElse Not String.IsNullOrEmpty(B2SName) Then
                 Dim nodeTable As Xml.XmlElement = AddHeader(XML, nodeHeader, If(Not String.IsNullOrEmpty(GameName), GameName, B2SName))
                 nodeTable.RemoveAll()
@@ -455,6 +471,10 @@ Public Class B2SSettings
                 ' Only save the StartBackground setting on table level if not set to standard
                 If StartBackground.HasValue Then
                     AddNode(XML, nodeTable, "StartBackground", If(StartBackground, "1", "0"))
+                End If
+                Dim inheritedImageTransparency As Boolean = If(GlobalImageTransparency.HasValue, GlobalImageTransparency.Value, False)
+                If ImageTransparency.HasValue AndAlso ImageTransparency.Value <> inheritedImageTransparency Then
+                    AddNode(XML, nodeTable, "ImageTransparency", If(ImageTransparency, "1", "0"))
                 End If
                 If DisableBuiltInEMReelSound.HasValue Then
                     AddNode(XML, nodeTable, "DisableBuiltInEMReelSound", If(DisableBuiltInEMReelSound, "1", "0"))
@@ -528,6 +548,8 @@ Public Class B2SSettings
         FormToFront = True
         FormToBack = False
         FormNoFocus = False
+        ImageTransparency = Nothing
+        GlobalImageTransparency = Nothing
     End Sub
 
     Private Shared Function AddHeader(XML As Xml.XmlDocument, parentnode As Xml.XmlNode, nodename As String) As Xml.XmlNode

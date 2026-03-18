@@ -40,6 +40,8 @@ Partial Class formSettings
         Me.chkActivatePlugins = New System.Windows.Forms.CheckBox()
         Me.btnPluginSettings = New System.Windows.Forms.Button()
         Me.grpStartMode = New System.Windows.Forms.GroupBox()
+        Me.lblImageTransparency = New System.Windows.Forms.Label()
+        Me.cmbImageTransparency = New System.Windows.Forms.ComboBox()
         Me.chkDisableFuzzyMatching = New System.Windows.Forms.CheckBox()
         Me.lblDefaultStartMode = New System.Windows.Forms.Label()
         Me.chkStartAsEXE = New System.Windows.Forms.CheckBox()
@@ -228,7 +230,7 @@ Partial Class formSettings
         Me.grpPlugins.Controls.Add(Me.chkShowStartupError)
         Me.grpPlugins.Controls.Add(Me.chkActivatePlugins)
         Me.grpPlugins.Controls.Add(Me.btnPluginSettings)
-        Me.grpPlugins.Location = New System.Drawing.Point(12, 550)
+        Me.grpPlugins.Location = New System.Drawing.Point(12, 577)
         Me.grpPlugins.Name = "grpPlugins"
         Me.grpPlugins.Size = New System.Drawing.Size(515, 68)
         Me.grpPlugins.TabIndex = 37
@@ -267,22 +269,43 @@ Partial Class formSettings
         '
         'grpStartMode
         '
+        Me.grpStartMode.Controls.Add(Me.lblImageTransparency)
+        Me.grpStartMode.Controls.Add(Me.cmbImageTransparency)
         Me.grpStartMode.Controls.Add(Me.chkDisableFuzzyMatching)
         Me.grpStartMode.Controls.Add(Me.lblDefaultStartMode)
         Me.grpStartMode.Controls.Add(Me.chkStartAsEXE)
         Me.grpStartMode.Controls.Add(Me.cmbDefaultStartMode)
         Me.grpStartMode.Location = New System.Drawing.Point(12, 205)
         Me.grpStartMode.Name = "grpStartMode"
-        Me.grpStartMode.Size = New System.Drawing.Size(515, 49)
+        Me.grpStartMode.Size = New System.Drawing.Size(515, 76)
         Me.grpStartMode.TabIndex = 2
         Me.grpStartMode.TabStop = False
         Me.grpStartMode.Text = "Backglass start mode"
+        '
+        'lblImageTransparency
+        '
+        Me.lblImageTransparency.AutoSize = True
+        Me.lblImageTransparency.Location = New System.Drawing.Point(243, 50)
+        Me.lblImageTransparency.Name = "lblImageTransparency"
+        Me.lblImageTransparency.Size = New System.Drawing.Size(95, 13)
+        Me.lblImageTransparency.TabIndex = 42
+        Me.lblImageTransparency.Text = "Image transparency:"
+        '
+        'cmbImageTransparency
+        '
+        Me.cmbImageTransparency.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cmbImageTransparency.FormattingEnabled = True
+        Me.cmbImageTransparency.Items.AddRange(New Object() {"On", "Off", "Standard"})
+        Me.cmbImageTransparency.Location = New System.Drawing.Point(344, 47)
+        Me.cmbImageTransparency.Name = "cmbImageTransparency"
+        Me.cmbImageTransparency.Size = New System.Drawing.Size(117, 21)
+        Me.cmbImageTransparency.TabIndex = 41
         '
         'chkDisableFuzzyMatching
         '
         Me.chkDisableFuzzyMatching.AutoSize = True
         Me.chkDisableFuzzyMatching.Font = New System.Drawing.Font("Microsoft Sans Serif", 8.25!)
-        Me.chkDisableFuzzyMatching.Location = New System.Drawing.Point(327, 23)
+        Me.chkDisableFuzzyMatching.Location = New System.Drawing.Point(6, 49)
         Me.chkDisableFuzzyMatching.Name = "chkDisableFuzzyMatching"
         Me.chkDisableFuzzyMatching.Size = New System.Drawing.Size(134, 17)
         Me.chkDisableFuzzyMatching.TabIndex = 40
@@ -397,7 +420,7 @@ Partial Class formSettings
         '
         Me.grpAnimationSettings.Controls.Add(Me.cmbAnimationSetting)
         Me.grpAnimationSettings.Controls.Add(Me.cmbAnimations)
-        Me.grpAnimationSettings.Location = New System.Drawing.Point(12, 425)
+        Me.grpAnimationSettings.Location = New System.Drawing.Point(12, 452)
         Me.grpAnimationSettings.Name = "grpAnimationSettings"
         Me.grpAnimationSettings.Size = New System.Drawing.Size(515, 51)
         Me.grpAnimationSettings.TabIndex = 5
@@ -428,7 +451,7 @@ Partial Class formSettings
         Me.grpScreenshot.Controls.Add(Me.lblFileType)
         Me.grpScreenshot.Controls.Add(Me.cmbScreenshotType)
         Me.grpScreenshot.Controls.Add(Me.btnScreenshotPath)
-        Me.grpScreenshot.Location = New System.Drawing.Point(12, 482)
+        Me.grpScreenshot.Location = New System.Drawing.Point(12, 509)
         Me.grpScreenshot.Name = "grpScreenshot"
         Me.grpScreenshot.Size = New System.Drawing.Size(515, 62)
         Me.grpScreenshot.TabIndex = 6
@@ -621,7 +644,7 @@ Partial Class formSettings
         Me.grpLEDs.Controls.Add(Me.radioDream7LED)
         Me.grpLEDs.Controls.Add(Me.chkWireframe)
         Me.grpLEDs.Controls.Add(Me.chkBulbs)
-        Me.grpLEDs.Location = New System.Drawing.Point(12, 339)
+        Me.grpLEDs.Location = New System.Drawing.Point(12, 366)
         Me.grpLEDs.Name = "grpLEDs"
         Me.grpLEDs.Size = New System.Drawing.Size(515, 80)
         Me.grpLEDs.TabIndex = 4
@@ -703,7 +726,7 @@ Partial Class formSettings
         Me.grpPerfTuning.Controls.Add(Me.lblSolenoidBlackTurns)
         Me.grpPerfTuning.Controls.Add(Me.numGISkipFrames)
         Me.grpPerfTuning.Controls.Add(Me.lblGIBlackTurns)
-        Me.grpPerfTuning.Location = New System.Drawing.Point(12, 260)
+        Me.grpPerfTuning.Location = New System.Drawing.Point(12, 287)
         Me.grpPerfTuning.Name = "grpPerfTuning"
         Me.grpPerfTuning.Size = New System.Drawing.Size(515, 73)
         Me.grpPerfTuning.TabIndex = 3
@@ -782,7 +805,7 @@ Partial Class formSettings
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(96.0!, 96.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi
-        Me.ClientSize = New System.Drawing.Size(536, 673)
+        Me.ClientSize = New System.Drawing.Size(536, 700)
         Me.Controls.Add(Me.PanelSettings)
         Me.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedToolWindow
         Me.KeyPreview = True
@@ -876,6 +899,8 @@ Partial Class formSettings
     Friend WithEvents lblFormFront As Windows.Forms.Label
     Friend WithEvents cmbFormFront As Windows.Forms.ComboBox
     Friend WithEvents chkDisableFuzzyMatching As Windows.Forms.CheckBox
+    Friend WithEvents lblImageTransparency As Windows.Forms.Label
+    Friend WithEvents cmbImageTransparency As Windows.Forms.ComboBox
     Friend WithEvents chkFormNoFocus As Windows.Forms.CheckBox
     Friend WithEvents btnEditScreenRes As Windows.Forms.Button
     Friend WithEvents lblBackground As Windows.Forms.Label
