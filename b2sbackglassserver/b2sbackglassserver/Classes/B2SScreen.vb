@@ -488,7 +488,9 @@ Public Class B2SScreen
             Me.formbackground.Text = "B2S Backglass Server"
             Me.formbackground.BackColor = Color.Black
             If (File.Exists(Me.BackgroundPath)) Then
-                Me.formbackground.BackgroundImage = Image.FromFile(Me.BackgroundPath) ' ("C:\backglass.png")
+                Dim backgroundImage As Image = Image.FromFile(Me.BackgroundPath)
+                EnableFormTransparencyIfNeeded(Me.formbackground, backgroundImage, "BackgroundPath:" & Me.BackgroundPath)
+                Me.formbackground.BackgroundImage = backgroundImage ' ("C:\backglass.png")
             End If
             Me.formbackground.Show()
             If Not B2SSettings.PureEXE Then

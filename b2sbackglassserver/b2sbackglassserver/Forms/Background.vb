@@ -1,4 +1,5 @@
 ﻿Imports System
+Imports System.Drawing
 Imports System.Windows.Forms
 
 Public Class Background
@@ -38,6 +39,19 @@ Public Class Background
         Me.DoubleBuffered = True
 
     End Sub
+
+    Public Overrides Property BackgroundImage() As Image
+        Get
+            Return MyBase.BackgroundImage
+        End Get
+        Set(ByVal value As Image)
+            If value Is Nothing OrElse MyBase.BackgroundImage Is Nothing OrElse Not MyBase.BackgroundImage.Equals(value) Then
+                MyBase.BackgroundImage = value
+                EnableFormTransparencyIfNeeded(Me, value, "BackgroundForm.BackgroundImage")
+                Me.Invalidate()
+            End If
+        End Set
+    End Property
 
     Private Sub Background_MouseClick(sender As Object, e As MouseEventArgs) Handles MyBase.MouseClick
 

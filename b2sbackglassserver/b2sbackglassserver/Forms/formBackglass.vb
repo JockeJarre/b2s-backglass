@@ -1782,6 +1782,7 @@ Public Class formBackglass
                 _backgroundimage = Nothing
             ElseIf Not value.Equals(_backgroundimage) Then
                 _backgroundimage = value
+                EnableFormTransparencyIfNeeded(Me, value, "BackglassForm.BackgroundImage")
                 Me.Invalidate()
             End If
         End Set
@@ -2675,6 +2676,7 @@ Public Class formBackglass
                         B2SData.OnAndOffImage = True
                         ' get on and off image
                         Dim offimage As Image = Base64ToImage(offimagenode.Attributes("Value").InnerText)
+                        EnableFormTransparencyIfNeeded(Me, offimage, "BackglassOffImage")
                         DarkImage4Authentic = offimage
                         If B2SData.DualBackglass Then
                             DarkImage4Fantasy = offimage
@@ -2682,6 +2684,7 @@ Public Class formBackglass
                         Dim onimagenode As Xml.XmlElement = topnode.SelectSingleNode("Images/BackglassOnImage")
                         If onimagenode IsNot Nothing Then
                             Dim onimage As Image = Base64ToImage(onimagenode.Attributes("Value").InnerText)
+                            EnableFormTransparencyIfNeeded(Me, onimage, "BackglassOnImage")
                             TopLightImage4Authentic = onimage
                             If B2SData.DualBackglass Then
                                 TopLightImage4Fantasy = onimage
@@ -2717,6 +2720,7 @@ Public Class formBackglass
                         Dim imagenode As Xml.XmlElement = topnode.SelectSingleNode("Images/BackglassImage")
                         If imagenode IsNot Nothing Then
                             Dim image As Image = Base64ToImage(imagenode.Attributes("Value").InnerText)
+                            EnableFormTransparencyIfNeeded(Me, image, "BackglassImage")
                             DarkImage4Authentic = image
                             If B2SData.DualBackglass Then
                                 DarkImage4Fantasy = image
@@ -2733,6 +2737,7 @@ Public Class formBackglass
                         If image IsNot Nothing Then
                             If Not B2SSettings.HideB2SDMD Then
                                 CheckDMDForm()
+                                EnableFormTransparencyIfNeeded(formDMD, image, "DMDImage")
                                 formDMD.BackgroundImage = image
                             End If
                         End If

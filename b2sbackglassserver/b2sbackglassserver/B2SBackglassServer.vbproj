@@ -152,6 +152,7 @@
     <Compile Include="Forms\formSettingsMore.vb">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="moduleFormTransparency.vb" />
     <Compile Include="moduleImageExtensions.vb" />
     <Compile Include="Logging\Statistics.vb" />
     <Compile Include="Logging\Log.vb" />

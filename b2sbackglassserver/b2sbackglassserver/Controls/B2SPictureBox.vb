@@ -89,6 +89,7 @@ Public Class B2SPictureBox
         Set(ByVal value As Image)
             If _BackgroundImage Is Nothing OrElse Not _BackgroundImage.Equals(value) Then
                 _BackgroundImage = value
+                EnableFormTransparencyIfNeeded(TryCast(Me.Parent, Form), value, "PictureBoxBackgroundImage:" & Me.Name)
                 ' do a invalidate at the parent form
                 If Me.Parent IsNot Nothing Then Me.Parent.Invalidate(Rectangle.Round(Me.RectangleF))
             End If
@@ -102,7 +103,16 @@ Public Class B2SPictureBox
         End Get
         Set(ByVal value As Image)
             _OffImage = value
+            EnableFormTransparencyIfNeeded(TryCast(Me.Parent, Form), value, "PictureBoxOffImage:" & Me.Name)
         End Set
     End Property
+
+    Protected Overrides Sub OnParentChanged(e As EventArgs)
+        MyBase.OnParentChanged(e)
+
+        Dim parentForm As Form = TryCast(Me.Parent, Form)
+        EnableFormTransparencyIfNeeded(parentForm, _BackgroundImage, "PictureBoxBackgroundImage:" & Me.Name)
+        EnableFormTransparencyIfNeeded(parentForm, _OffImage, "PictureBoxOffImage:" & Me.Name)
+    End Sub
 
 End Class

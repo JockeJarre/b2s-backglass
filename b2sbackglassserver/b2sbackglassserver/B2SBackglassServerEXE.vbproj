@@ -180,6 +180,7 @@
     </Compile>
     <Compile Include="Logging\Statistics.vb" />
     <Compile Include="Logging\Log.vb" />
+    <Compile Include="moduleFormTransparency.vb" />
     <Compile Include="moduleImageExtensions.vb" />
     <Compile Include="My Project\AssemblyInfo.vb" />
     <Compile Include="My Project\Application.Designer.vb">
