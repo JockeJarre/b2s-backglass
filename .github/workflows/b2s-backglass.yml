@@ -18,14 +18,12 @@ jobs:
           - config: Debug
           - config: Release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 # This empty uses is here on purpose
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: DirectOutput/B2SServerPluginInterface
           path: B2SServerPluginInterface
-      - name: Setup NuGet
-        uses: NuGet/setup-nuget@v2
       - name: Restore .NET 4 reference assemblies
         shell: pwsh
         run: |
@@ -85,12 +83,27 @@ jobs:
           echo -e "\n[assembly: AssemblyInformationalVersion(\"${TAG}-${SHA7}\")]" >> "${ASSEMBLY_INFO}"
           : # Keep the VERSION_LONG for later
           echo "tag=${VERSION_LONG}" >> $GITHUB_OUTPUT
-      - uses: microsoft/setup-msbuild@v2
+      - name: Locate MSBuild
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          if (-not (Test-Path $vswhere)) {
+            throw "vswhere.exe not found at $vswhere"
+          }
+          $installationPath = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+          if (-not $installationPath) {
+            throw 'No Visual Studio installation with MSBuild was found.'
+          }
+          $msbuildPath = Join-Path $installationPath 'MSBuild\Current\Bin\MSBuild.exe'
+          if (-not (Test-Path $msbuildPath)) {
+            throw "MSBuild.exe not found at $msbuildPath"
+          }
+          "MSBUILD_PATH=$msbuildPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Build B2SServerPluginInterface
         shell: pwsh
         run: |
           $frameworkPath = Resolve-Path packages/Microsoft.NETFramework.ReferenceAssemblies.net40.1.0.3/build/.NETFramework/v4.0
-          msbuild B2SServerPluginInterface/B2SServerPluginInterface.sln /t:Rebuild /p:Configuration=${{ matrix.config }} /p:FrameworkPathOverride="$frameworkPath"
+          & "$env:MSBUILD_PATH" B2SServerPluginInterface/B2SServerPluginInterface.sln /t:Rebuild /p:Configuration=${{ matrix.config }} /p:FrameworkPathOverride="$frameworkPath"
       - run: |
           cp B2SServerPluginInterface/B2SServerPluginInterface/bin/${{ matrix.config }}/B2SServerPluginInterface.dll b2sbackglassserver/b2sbackglassserver/Plugin
           if [[ "${{ matrix.config }}" == "Debug" ]]; then
@@ -98,11 +111,11 @@ jobs:
           fi
       - name: Build Server
         run: |
-          msbuild b2s_screenresidentifier/B2S_ScreenResIdentifier.sln /t:Rebuild /p:Configuration=${{ matrix.config }}
-          msbuild B2S_SetUp/B2S_SetUp.sln /t:Rebuild /p:Configuration=${{ matrix.config }}
-          msbuild b2sbackglassserver/B2SBackglassServer.sln /t:Rebuild /p:Configuration=${{ matrix.config }}
-          msbuild b2sbackglassserverregisterapp/B2SBackglassServerRegisterApp.sln /t:Rebuild /p:Configuration=${{ matrix.config }} /p:Platform=x86
-          msbuild B2SWindowPunch/B2SWindowPunch.sln /t:Rebuild /p:Configuration=${{ matrix.config }}
+          "%MSBUILD_PATH%" b2s_screenresidentifier/B2S_ScreenResIdentifier.sln /t:Rebuild /p:Configuration=${{ matrix.config }}
+          "%MSBUILD_PATH%" B2S_SetUp/B2S_SetUp.sln /t:Rebuild /p:Configuration=${{ matrix.config }}
+          "%MSBUILD_PATH%" b2sbackglassserver/B2SBackglassServer.sln /t:Rebuild /p:Configuration=${{ matrix.config }}
+          "%MSBUILD_PATH%" b2sbackglassserverregisterapp/B2SBackglassServerRegisterApp.sln /t:Rebuild /p:Configuration=${{ matrix.config }} /p:Platform=x86
+          "%MSBUILD_PATH%" B2SWindowPunch/B2SWindowPunch.sln /t:Rebuild /p:Configuration=${{ matrix.config }}
         shell: cmd
       - name: Bundle 
         run: |
@@ -142,7 +155,7 @@ jobs:
         continue-on-error: true
         run: |
           cmd /d /c "tree /F /A"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
          name: B2SServer-${{ steps.version.outputs.tag }}-${{ matrix.config }}-win
          path: tmp
